@@ -15,22 +15,76 @@ public class Program
         builder.Services.AddRazorComponents()
             .AddInteractiveServerComponents();
 
-        // Add authentication and identity services
+        // Configure database based on settings
+        var databaseProvider = builder.Configuration.GetValue<string>("DatabaseProvider") ?? "InMemory";
+        
         builder.Services.AddDbContext<ApplicationDbContext>(options =>
-            options.UseInMemoryDatabase("DefaultConnection"));
+        {
+            switch (databaseProvider.ToLowerInvariant())
+            {
+                case "sqlite":
+                    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=codeui.db";
+                    options.UseSqlite(connectionString);
+                    break;
+                case "sqlserver":
+                    var sqlServerConnection = builder.Configuration.GetConnectionString("SqlServerConnection");
+                    if (!string.IsNullOrEmpty(sqlServerConnection))
+                    {
+                        options.UseSqlServer(sqlServerConnection);
+                    }
+                    else
+                    {
+                        options.UseInMemoryDatabase("DefaultConnection");
+                    }
+                    break;
+                default:
+                    options.UseInMemoryDatabase("DefaultConnection");
+                    break;
+            }
+        });
 
+        // Configure Identity with settings from configuration
         builder.Services.AddDefaultIdentity<ApplicationUser>(options => 
         {
-            options.SignIn.RequireConfirmedAccount = false;
-            options.Password.RequireDigit = false;
-            options.Password.RequiredLength = 6;
-            options.Password.RequireNonAlphanumeric = false;
-            options.Password.RequireUppercase = false;
-            options.Password.RequireLowercase = false;
+            var authConfig = builder.Configuration.GetSection("Authentication");
+            options.SignIn.RequireConfirmedAccount = authConfig.GetValue<bool>("RequireConfirmedAccount", false);
+            
+            var passwordConfig = authConfig.GetSection("Password");
+            options.Password.RequireDigit = passwordConfig.GetValue<bool>("RequireDigit", false);
+            options.Password.RequiredLength = passwordConfig.GetValue<int>("RequiredLength", 6);
+            options.Password.RequireNonAlphanumeric = passwordConfig.GetValue<bool>("RequireNonAlphanumeric", false);
+            options.Password.RequireUppercase = passwordConfig.GetValue<bool>("RequireUppercase", false);
+            options.Password.RequireLowercase = passwordConfig.GetValue<bool>("RequireLowercase", false);
         })
         .AddEntityFrameworkStores<ApplicationDbContext>();
 
         var app = builder.Build();
+
+        // Ensure database is created for SQLite/SQL Server
+        if (databaseProvider.ToLowerInvariant() != "inmemory")
+        {
+            using (var scope = app.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                
+                // Ensure directory exists for SQLite
+                if (databaseProvider.ToLowerInvariant() == "sqlite")
+                {
+                    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=codeui.db";
+                    if (connectionString.Contains("Data Source=") && connectionString.Contains("/"))
+                    {
+                        var dbPath = connectionString.Replace("Data Source=", "").Split(';')[0];
+                        var directory = Path.GetDirectoryName(dbPath);
+                        if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+                        {
+                            Directory.CreateDirectory(directory);
+                        }
+                    }
+                }
+                
+                context.Database.EnsureCreated();
+            }
+        }
 
         // Configure the HTTP request pipeline.
         if (!app.Environment.IsDevelopment())
