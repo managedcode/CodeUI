@@ -1,11 +1,11 @@
 # CodeUI
-CodeUI is a comprehensive web-based AI CLI tools management application built with .NET 8.0 and C# 12. It provides a unified interface for managing multiple AI coding CLI tools (Claude Code, Gemini, Codex) with integrated file system navigation, git operations, and terminal access through Blazor Server-side application.
+CodeUI is a comprehensive web-based AI CLI tools management application built with .NET 9.0 and C# 13. It provides a unified interface for managing multiple AI coding CLI tools (Claude Code, Gemini, Codex) with integrated file system navigation, git operations, and terminal access through Blazor Server-side application.
 
 Always reference these instructions first and fallback to search or bash commands only when you encounter unexpected information that does not match the info here.
 
 ## Repository Status
-This repository is currently upgraded to .NET 8.0 with proper Aspire orchestration and comprehensive testing infrastructure:
-- .NET 8.0 with C# 12 language support
+This repository is currently upgraded to .NET 9.0 with proper Aspire 9.4 orchestration and comprehensive testing infrastructure:
+- .NET 9.0 with C# 13 language support
 - Aspire Hosting for distributed application orchestration  
 - Blazor Server-side web application
 - Comprehensive test coverage with unit and integration tests
@@ -14,8 +14,8 @@ This repository is currently upgraded to .NET 8.0 with proper Aspire orchestrati
 The project provides a web application for managing AI CLI tools with features including terminal emulation, file management, git integration, and session management.
 
 ## Prerequisites and Environment Setup
-- .NET 8.0 SDK is required and validated to work
-- C# 12 language features supported (latest with .NET 8)
+- .NET 9.0 SDK is required and validated to work
+- C# 13 language features supported (latest with .NET 9)
 - Aspire workload for distributed application development
 - All standard .NET development tools are available
 
@@ -81,11 +81,11 @@ var response = await httpClient.GetAsync("/");
 - Test coverage is collected automatically and reported via Codecov
 
 ### Package Management
-All packages are upgraded to .NET 8.0 compatible versions:
-- `Aspire.Hosting` 8.2.2 - For application orchestration
+All packages are upgraded to .NET 9.0 compatible versions:
+- `Aspire.Hosting` 9.4.0 - For application orchestration
 - `Microsoft.AspNetCore.*` 8.0.11 - For web application framework
 - `Microsoft.EntityFrameworkCore.*` 8.0.11 - For data access
-- `Microsoft.Orleans.*` 8.2.0 - For distributed state management
+- `Microsoft.Orleans.*` 9.2.0 - For distributed state management
 
 ## CI/CD Pipeline
 
