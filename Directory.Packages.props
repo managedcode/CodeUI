@@ -35,5 +35,9 @@
     <!-- Code coverage packages -->
     <PackageVersion Include="coverlet.collector" Version="6.0.2" />
     <PackageVersion Include="coverlet.msbuild" Version="6.0.2" />
+
+    <!-- CLI Process Management packages -->
+    <PackageVersion Include="CliWrap" Version="3.6.6" />
+    <PackageVersion Include="System.Reactive" Version="6.0.1" />
   </ItemGroup>
 </Project>

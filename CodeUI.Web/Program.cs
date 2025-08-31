@@ -1,5 +1,6 @@
 using CodeUI.Web.Components;
 using CodeUI.Core.Data;
+using CodeUI.Core.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -36,6 +37,9 @@ public class Program
             options.Password.RequireLowercase = passwordConfig.GetValue<bool>("RequireLowercase", false);
         })
         .AddEntityFrameworkStores<ApplicationDbContext>();
+
+        // Register CLI execution services
+        builder.Services.AddScoped<ICliExecutor, CliExecutor>();
 
         var app = builder.Build();
 
