@@ -42,7 +42,7 @@ if (!(Test-Path $dataDir)) {
 }
 
 # Update database path to use absolute path
-$appsettings.ConnectionStrings.DefaultConnection = "Data Source=$dataDir\codeui.db"
+$appsettings.ConnectionStrings.DefaultConnection = "Data Source=$(Join-Path $dataDir 'codeui.db')"
 
 # Save updated settings
 $appsettings | ConvertTo-Json -Depth 10 | Set-Content $appsettingsPath
