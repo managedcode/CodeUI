@@ -1,0 +1,262 @@
+@page "/terminal"
+@using System.Reactive.Linq
+@using CodeUI.Core.Services
+@using CodeUI.Core.Models
+@implements IAsyncDisposable
+@inject IJSRuntime JSRuntime
+@inject ICliExecutor CliExecutor
+
+<PageTitle>Terminal</PageTitle>
+
+<div class="terminal-container">
+    <div class="terminal-header">
+        <h3>CodeUI Terminal</h3>
+        <div class="terminal-controls">
+            <button class="btn btn-outline-secondary btn-sm" @onclick="ClearTerminal" disabled="@_isDisposed">
+                <i class="bi bi-trash"></i> Clear
+            </button>
+            <button class="btn btn-outline-success btn-sm" @onclick="FocusTerminal" disabled="@_isDisposed">
+                <i class="bi bi-cursor"></i> Focus
+            </button>
+        </div>
+    </div>
+    
+    <div class="terminal-wrapper">
+        <div id="@_terminalId" class="terminal-element"></div>
+    </div>
+    
+    <div class="terminal-status">
+        <small class="text-muted">
+            @if (CliExecutor.CurrentProcess != null)
+            {
+                <span class="badge bg-success">Running: @CliExecutor.CurrentProcess.Command @CliExecutor.CurrentProcess.Arguments</span>
+            }
+            else
+            {
+                <span class="badge bg-secondary">Ready</span>
+            }
+        </small>
+    </div>
+</div>
+
+<style>
+    .terminal-container {
+        height: calc(100vh - 100px);
+        display: flex;
+        flex-direction: column;
+        border: 1px solid #dee2e6;
+        border-radius: 0.375rem;
+        overflow: hidden;
+        background-color: #1e1e1e;
+    }
+    
+    .terminal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.75rem 1rem;
+        background-color: #2d2d30;
+        border-bottom: 1px solid #3e3e42;
+        color: #ffffff;
+    }
+    
+    .terminal-header h3 {
+        margin: 0;
+        font-size: 1.1rem;
+        font-weight: 500;
+    }
+    
+    .terminal-controls {
+        display: flex;
+        gap: 0.5rem;
+    }
+    
+    .terminal-wrapper {
+        flex: 1;
+        padding: 0.5rem;
+        overflow: hidden;
+        background-color: #1e1e1e;
+    }
+    
+    .terminal-element {
+        width: 100%;
+        height: 100%;
+    }
+    
+    .terminal-status {
+        padding: 0.5rem 1rem;
+        background-color: #2d2d30;
+        border-top: 1px solid #3e3e42;
+        color: #ffffff;
+    }
+</style>
+
+@code {
+    private readonly string _terminalId = $"terminal-{Guid.NewGuid():N}";
+    private DotNetObjectReference<Terminal>? _dotNetRef;
+    private IDisposable? _outputSubscription;
+    private bool _isInitialized = false;
+    private bool _isDisposed = false;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !_isDisposed)
+        {
+            await InitializeTerminalAsync();
+        }
+    }
+
+    private async Task InitializeTerminalAsync()
+    {
+        try
+        {
+            _dotNetRef = DotNetObjectReference.Create(this);
+            
+            // Initialize terminal with JavaScript interop
+            var initialized = await JSRuntime.InvokeAsync<bool>("xtermTerminal.create", _terminalId, _dotNetRef);
+            
+            if (initialized)
+            {
+                _isInitialized = true;
+                
+                // Subscribe to CLI output
+                _outputSubscription = CliExecutor.Output
+                    .Subscribe(async output => 
+                    {
+                        if (!_isDisposed && _isInitialized)
+                        {
+                            await InvokeAsync(async () =>
+                            {
+                                try
+                                {
+                                    await JSRuntime.InvokeVoidAsync("xtermTerminal.write", _terminalId, output.Text);
+                                }
+                                catch (Exception ex)
+                                {
+                                    Console.WriteLine($"Error writing to terminal: {ex.Message}");
+                                }
+                            });
+                        }
+                    });
+
+                // Focus terminal and show welcome message
+                await Task.Delay(100); // Small delay to ensure terminal is ready
+                await JSRuntime.InvokeVoidAsync("xtermTerminal.focus", _terminalId);
+                await JSRuntime.InvokeVoidAsync("xtermTerminal.write", _terminalId, 
+                    "Welcome to CodeUI Terminal\r\nType commands and press Enter to execute.\r\n\r\n$ ");
+                
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error initializing terminal: {ex.Message}");
+        }
+    }
+
+    [JSInvokable]
+    public async Task OnTerminalInput(string input)
+    {
+        if (_isDisposed || !_isInitialized)
+            return;
+
+        try
+        {
+            // Handle special keys
+            if (input == "\r") // Enter key
+            {
+                await JSRuntime.InvokeVoidAsync("xtermTerminal.write", _terminalId, "\r\n");
+                
+                // For now, just echo back - in a full implementation you'd process the command
+                // This is where you'd integrate with CliExecutor to run actual commands
+                await JSRuntime.InvokeVoidAsync("xtermTerminal.write", _terminalId, "$ ");
+            }
+            else if (input == "\u007f") // Backspace
+            {
+                await JSRuntime.InvokeVoidAsync("xtermTerminal.write", _terminalId, "\b \b");
+            }
+            else if (input == "\u0003") // Ctrl+C
+            {
+                if (CliExecutor.CurrentProcess != null)
+                {
+                    await CliExecutor.StopProcessAsync(graceful: false);
+                    await JSRuntime.InvokeVoidAsync("xtermTerminal.write", _terminalId, "^C\r\n$ ");
+                }
+            }
+            else
+            {
+                // Echo regular characters
+                await JSRuntime.InvokeVoidAsync("xtermTerminal.write", _terminalId, input);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error handling terminal input: {ex.Message}");
+        }
+    }
+
+    [JSInvokable]
+    public void OnTerminalResize(int cols, int rows)
+    {
+        if (_isDisposed)
+            return;
+
+        // Handle terminal resize if needed
+        Console.WriteLine($"Terminal resized to {cols}x{rows}");
+    }
+
+    private async Task ClearTerminal()
+    {
+        if (_isDisposed || !_isInitialized)
+            return;
+
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("xtermTerminal.clear", _terminalId);
+            await JSRuntime.InvokeVoidAsync("xtermTerminal.write", _terminalId, "$ ");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error clearing terminal: {ex.Message}");
+        }
+    }
+
+    private async Task FocusTerminal()
+    {
+        if (_isDisposed || !_isInitialized)
+            return;
+
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("xtermTerminal.focus", _terminalId);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error focusing terminal: {ex.Message}");
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_isDisposed)
+            return;
+
+        _isDisposed = true;
+
+        try
+        {
+            _outputSubscription?.Dispose();
+
+            if (_isInitialized)
+            {
+                await JSRuntime.InvokeVoidAsync("xtermTerminal.dispose", _terminalId);
+            }
+
+            _dotNetRef?.Dispose();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error disposing terminal: {ex.Message}");
+        }
+    }
+}
