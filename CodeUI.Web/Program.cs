@@ -46,7 +46,7 @@ public class Program
             
             // Ensure directory exists for SQLite database
             var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=codeui.db";
-            if (connectionString.Contains("Data Source=") && connectionString.Contains("/"))
+            if (connectionString.Contains("Data Source=") && (connectionString.Contains("/") || connectionString.Contains("\\")))
             {
                 var dbPath = connectionString.Replace("Data Source=", "").Split(';')[0];
                 var directory = Path.GetDirectoryName(dbPath);
