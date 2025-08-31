@@ -1,5 +1,5 @@
 # CodeUI
-CodeUI is a comprehensive web-based AI CLI tools management application built with .NET 8 and C# 12. It provides a unified interface for managing multiple AI coding CLI tools (Claude Code, Gemini, Codex) with integrated file system navigation, git operations, and terminal access through Blazor Server-side application.
+CodeUI is a comprehensive web-based AI CLI tools management application built with .NET 9 and C# 13. It provides a unified interface for managing multiple AI coding CLI tools (Claude Code, Gemini, Codex) with integrated file system navigation, git operations, and terminal access through Blazor Server-side application.
 
 Always reference these instructions first and fallback to search or bash commands only when you encounter unexpected information that does not match the info here.
 
@@ -12,9 +12,8 @@ This repository is currently in its bootstrap phase with only:
 The project is intended to become a web application providing a UI service for AI CLI tools with features including terminal emulation, file management, git integration, and session management.
 
 ## Prerequisites and Environment Setup
-- .NET 8.0 SDK is available and validated to work
-- C# 12 language features supported (latest with .NET 8)
-- Ready for upgrade to .NET 9 and C# 13 when available in environment
+- .NET 9.0 SDK is available and validated to work
+- C# 13 language features supported (latest with .NET 9)
 - No additional SDK downloads required - environment is pre-configured
 - All standard .NET development tools are available
 
