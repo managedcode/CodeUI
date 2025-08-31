@@ -237,10 +237,11 @@ if [[ "$OS" == "linux" ]]; then
     echo "  2. sudo systemctl disable $SERVICE_NAME"
     echo "  3. sudo rm /etc/systemd/system/$SERVICE_NAME.service"
     echo "  4. sudo systemctl daemon-reload"
+    echo "  5. sudo rm -rf $INSTALL_PATH"
+    echo "  6. sudo userdel $USER"
 else
     echo "  1. sudo launchctl stop com.$SERVICE_NAME.app"
     echo "  2. sudo launchctl unload /Library/LaunchDaemons/com.$SERVICE_NAME.app.plist"
     echo "  3. sudo rm /Library/LaunchDaemons/com.$SERVICE_NAME.app.plist"
+    echo "  4. sudo rm -rf $INSTALL_PATH"
 fi
-echo "  5. sudo rm -rf $INSTALL_PATH"
-echo "  6. sudo userdel $USER" # Linux only, but harmless on macOS
