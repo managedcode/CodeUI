@@ -378,6 +378,12 @@ MSBuild_Logs/
 # NVidia Nsight GPU debugger configuration file
 *.nvuser
 
+# SQLite database files
+*.db
+*.db-shm
+*.db-wal
+codeui.db*
+
 # MFractors (Xamarin productivity tool) working folder
 **/.mfractor/
 
