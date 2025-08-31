@@ -157,13 +157,43 @@ dotnet ef database update --project CodeUI.Core --startup-project CodeUI.Web
 
 ## 🚀 Deployment
 
-For production deployment:
+### Self-Contained Deployment (Recommended)
+
+CodeUI supports self-contained deployment for production environments without requiring Docker or external dependencies.
+
+#### Quick Start
+```bash
+# Build for all platforms
+./deployment/scripts/build-all.sh
+
+# Manual build commands
+dotnet publish CodeUI.Web -c Release -r win-x64 --self-contained -p:PublishSingleFile=true
+dotnet publish CodeUI.Web -c Release -r linux-x64 --self-contained -p:PublishSingleFile=true
+dotnet publish CodeUI.Web -c Release -r osx-x64 --self-contained -p:PublishSingleFile=true
+```
+
+#### Platform Installation
+- **Windows**: Run `install-windows.ps1` as Administrator
+- **Linux**: Run `sudo ./install-unix.sh`
+- **macOS**: Run `sudo ./install-unix.sh`
+
+#### Features
+- ✅ Single executable (~150MB per platform)
+- ✅ SQLite database for data persistence
+- ✅ Windows Service / systemd / LaunchDaemon auto-start
+- ✅ No external dependencies required
+- ✅ Production-ready configuration
+
+See [deployment/README.md](deployment/README.md) for detailed instructions.
+
+### Traditional Deployment
+
+For development or containerized environments:
 
 1. **Update Database Provider**: Change from In-Memory to SQL Server/PostgreSQL in `Program.cs`
 2. **Configure Connection Strings**: Update `appsettings.json` with production database
 3. **Security Settings**: Review and harden authentication settings
 4. **Environment Variables**: Configure for production environment
-5. **Docker**: Use provided Dockerfile (when added) for containerization
 
 ## 🤝 Contributing
 
