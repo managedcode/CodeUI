@@ -97,6 +97,7 @@
     private IDisposable? _outputSubscription;
     private bool _isInitialized = false;
     private bool _isDisposed = false;
+    private string _currentInput = string.Empty;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -167,13 +168,17 @@
             {
                 await JSRuntime.InvokeVoidAsync("xtermTerminal.write", _terminalId, "\r\n");
                 
-                // For now, just echo back - in a full implementation you'd process the command
-                // This is where you'd integrate with CliExecutor to run actual commands
-                await JSRuntime.InvokeVoidAsync("xtermTerminal.write", _terminalId, "$ ");
+                // Process the command
+                await ProcessCommand(_currentInput.Trim());
+                _currentInput = string.Empty;
             }
             else if (input == "\u007f") // Backspace
             {
-                await JSRuntime.InvokeVoidAsync("xtermTerminal.write", _terminalId, "\b \b");
+                if (_currentInput.Length > 0)
+                {
+                    _currentInput = _currentInput.Substring(0, _currentInput.Length - 1);
+                    await JSRuntime.InvokeVoidAsync("xtermTerminal.write", _terminalId, "\b \b");
+                }
             }
             else if (input == "\u0003") // Ctrl+C
             {
@@ -181,17 +186,75 @@
                 {
                     await CliExecutor.StopProcessAsync(graceful: false);
                     await JSRuntime.InvokeVoidAsync("xtermTerminal.write", _terminalId, "^C\r\n$ ");
+                    _currentInput = string.Empty;
                 }
             }
             else
             {
-                // Echo regular characters
+                // Add character to current input and echo
+                _currentInput += input;
                 await JSRuntime.InvokeVoidAsync("xtermTerminal.write", _terminalId, input);
             }
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Error handling terminal input: {ex.Message}");
+        }
+    }
+
+    private async Task ProcessCommand(string command)
+    {
+        if (string.IsNullOrWhiteSpace(command))
+        {
+            await JSRuntime.InvokeVoidAsync("xtermTerminal.write", _terminalId, "$ ");
+            return;
+        }
+
+        try
+        {
+            // Parse command and arguments
+            var parts = command.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length == 0)
+            {
+                await JSRuntime.InvokeVoidAsync("xtermTerminal.write", _terminalId, "$ ");
+                return;
+            }
+
+            var cmd = parts[0];
+            var args = parts.Length > 1 ? string.Join(" ", parts.Skip(1)) : string.Empty;
+
+            // Handle special terminal commands
+            if (cmd == "clear")
+            {
+                await JSRuntime.InvokeVoidAsync("xtermTerminal.clear", _terminalId);
+                await JSRuntime.InvokeVoidAsync("xtermTerminal.write", _terminalId, "$ ");
+                return;
+            }
+
+            if (cmd == "help")
+            {
+                await JSRuntime.InvokeVoidAsync("xtermTerminal.write", _terminalId, 
+                    "Available commands:\r\n" +
+                    "  help     - Show this help message\r\n" +
+                    "  clear    - Clear the terminal\r\n" +
+                    "  echo     - Echo back text\r\n" +
+                    "  pwd      - Show current directory (if available)\r\n" +
+                    "  ls       - List directory contents (if available)\r\n" +
+                    "  Other commands will be executed via CLI executor\r\n$ ");
+                return;
+            }
+
+            // Execute command via CLI executor
+            await CliExecutor.ExecuteAsync(cmd, args);
+            
+            // Add prompt after command completion
+            await Task.Delay(100); // Small delay to ensure output is written
+            await JSRuntime.InvokeVoidAsync("xtermTerminal.write", _terminalId, "\r\n$ ");
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("xtermTerminal.write", _terminalId, 
+                $"Error: {ex.Message}\r\n$ ");
         }
     }
 
