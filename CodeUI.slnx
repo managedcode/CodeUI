@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Solution>
+  <Project Path="CodeUI.AppHost\CodeUI.AppHost.csproj" />
+  <Project Path="CodeUI.Web\CodeUI.Web.csproj" />
+  <Project Path="CodeUI.Core\CodeUI.Core.csproj" />
+  <Project Path="CodeUI.Orleans\CodeUI.Orleans.csproj" />
+  <Project Path="CodeUI.Tests\CodeUI.Tests.csproj" />
+  <Project Path="CodeUI.AspireTests\CodeUI.AspireTests.csproj" />
+</Solution>
