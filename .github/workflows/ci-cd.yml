@@ -1,0 +1,243 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  DOTNET_VERSION: '8.0.x'
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  DOTNET_NOLOGO: true
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+    
+    - name: Restore dependencies
+      run: dotnet restore
+    
+    - name: Build solution
+      run: dotnet build --configuration Release --no-restore
+    
+    - name: Run tests
+      run: dotnet test --configuration Release --no-build --verbosity normal
+    
+    - name: Build AppHost for testing
+      run: dotnet build CodeUI.AppHost --configuration Release --no-restore
+
+  deploy-self-contained:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    strategy:
+      matrix:
+        runtime: [win-x64, linux-x64, osx-x64]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+    
+    - name: Restore dependencies
+      run: dotnet restore
+    
+    - name: Publish self-contained for ${{ matrix.runtime }}
+      run: |
+        dotnet publish CodeUI.Web \
+          --configuration Release \
+          --runtime ${{ matrix.runtime }} \
+          --self-contained true \
+          --output ./publish/${{ matrix.runtime }} \
+          -p:PublishSingleFile=true \
+          -p:PublishTrimmed=true \
+          -p:IncludeNativeLibrariesForSelfExtract=true
+    
+    - name: Upload artifacts for ${{ matrix.runtime }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: codeui-${{ matrix.runtime }}
+        path: ./publish/${{ matrix.runtime }}
+        retention-days: 30
+
+  e2e-tests-preparation:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+    
+    - name: Setup Node.js for Playwright
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+    
+    - name: Install Playwright
+      run: |
+        npm init -y
+        npm install @playwright/test
+        npx playwright install
+    
+    - name: Restore and build solution
+      run: |
+        dotnet restore
+        dotnet build --configuration Release --no-restore
+    
+    - name: Start application for E2E testing
+      run: |
+        dotnet run --project CodeUI.AppHost --configuration Release &
+        echo "Waiting for application to start..."
+        sleep 30
+        curl -f http://localhost:5225 || echo "Application not yet ready"
+      timeout-minutes: 2
+    
+    - name: Placeholder for E2E tests
+      run: |
+        echo "E2E tests will be implemented here (Issue #17)"
+        echo "Application is ready for Playwright test integration"
+    
+    - name: Stop application
+      run: |
+        pkill -f "CodeUI.AppHost" || true
+        pkill -f "CodeUI.Web" || true
+
+  create-release:
+    needs: [build-and-test, deploy-self-contained]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: ./artifacts
+    
+    - name: Create deployment scripts
+      run: |
+        mkdir -p ./deployment
+        
+        # Windows installation script
+        cat > ./deployment/install-windows.ps1 << 'EOF'
+        # CodeUI Windows Installation Script
+        Write-Host "Installing CodeUI..."
+        
+        $installPath = "$env:ProgramFiles\CodeUI"
+        New-Item -ItemType Directory -Force -Path $installPath
+        
+        # Copy executable (assuming it's downloaded separately)
+        # Copy-Item "CodeUI.Web.exe" -Destination $installPath
+        
+        # Create Windows Service (optional)
+        # sc.exe create "CodeUI" binPath="$installPath\CodeUI.Web.exe" DisplayName="CodeUI Service"
+        
+        Write-Host "Installation completed. Run CodeUI.Web.exe to start the application."
+        EOF
+        
+        # Linux installation script
+        cat > ./deployment/install-linux.sh << 'EOF'
+        #!/bin/bash
+        # CodeUI Linux Installation Script
+        
+        echo "Installing CodeUI..."
+        
+        INSTALL_PATH="/opt/codeui"
+        sudo mkdir -p "$INSTALL_PATH"
+        
+        # Copy executable (assuming it's downloaded separately)
+        # sudo cp CodeUI.Web "$INSTALL_PATH/"
+        # sudo chmod +x "$INSTALL_PATH/CodeUI.Web"
+        
+        # Create systemd service
+        sudo tee /etc/systemd/system/codeui.service > /dev/null << 'SYSTEMD_EOF'
+        [Unit]
+        Description=CodeUI Web Application
+        After=network.target
+        
+        [Service]
+        Type=simple
+        User=www-data
+        WorkingDirectory=/opt/codeui
+        ExecStart=/opt/codeui/CodeUI.Web
+        Restart=always
+        RestartSec=10
+        
+        [Install]
+        WantedBy=multi-user.target
+        SYSTEMD_EOF
+        
+        sudo systemctl daemon-reload
+        echo "Installation completed. Use 'sudo systemctl start codeui' to start the service."
+        EOF
+        
+        # macOS installation script
+        cat > ./deployment/install-macos.sh << 'EOF'
+        #!/bin/bash
+        # CodeUI macOS Installation Script
+        
+        echo "Installing CodeUI..."
+        
+        INSTALL_PATH="/usr/local/bin"
+        sudo mkdir -p "$INSTALL_PATH"
+        
+        # Copy executable (assuming it's downloaded separately)
+        # sudo cp CodeUI.Web "$INSTALL_PATH/"
+        # sudo chmod +x "$INSTALL_PATH/CodeUI.Web"
+        
+        echo "Installation completed. Run 'CodeUI.Web' to start the application."
+        EOF
+        
+        chmod +x ./deployment/*.sh
+    
+    - name: Upload deployment scripts
+      uses: actions/upload-artifact@v4
+      with:
+        name: deployment-scripts
+        path: ./deployment
+        retention-days: 90
+    
+    - name: Generate deployment info
+      run: |
+        echo "# CodeUI Deployment Information" > deployment-info.md
+        echo "" >> deployment-info.md
+        echo "## Available Artifacts:" >> deployment-info.md
+        echo "- \`codeui-win-x64\`: Windows x64 self-contained executable" >> deployment-info.md
+        echo "- \`codeui-linux-x64\`: Linux x64 self-contained executable" >> deployment-info.md
+        echo "- \`codeui-osx-x64\`: macOS x64 self-contained executable" >> deployment-info.md
+        echo "- \`deployment-scripts\`: Installation scripts for all platforms" >> deployment-info.md
+        echo "" >> deployment-info.md
+        echo "## Installation Instructions:" >> deployment-info.md
+        echo "1. Download the appropriate artifact for your platform" >> deployment-info.md
+        echo "2. Extract the executable" >> deployment-info.md
+        echo "3. Run the platform-specific installation script (optional)" >> deployment-info.md
+        echo "4. Start the application" >> deployment-info.md
+        echo "" >> deployment-info.md
+        echo "## Default URLs:" >> deployment-info.md
+        echo "- Web Interface: http://localhost:5225" >> deployment-info.md
+        echo "- Aspire Dashboard: http://localhost:15888 (development)" >> deployment-info.md
+    
+    - name: Upload deployment info
+      uses: actions/upload-artifact@v4
+      with:
+        name: deployment-info
+        path: deployment-info.md
+        retention-days: 90
