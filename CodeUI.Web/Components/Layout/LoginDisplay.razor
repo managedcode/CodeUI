@@ -1,0 +1,19 @@
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using CodeUI.Core.Data
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject SignInManager<ApplicationUser> SignInManager
+@inject UserManager<ApplicationUser> UserManager
+
+<AuthorizeView>
+    <Authorized>
+        <span class="text-light">Hello, @context.User.Identity?.Name!</span>
+        <form method="post" action="/Identity/Account/Logout" class="d-inline ms-2">
+            <button type="submit" class="btn btn-sm btn-outline-light">Logout</button>
+        </form>
+    </Authorized>
+    <NotAuthorized>
+        <a href="/Identity/Account/Register" class="btn btn-sm btn-outline-light me-1">Register</a>
+        <a href="/Identity/Account/Login" class="btn btn-sm btn-light">Login</a>
+    </NotAuthorized>
+</AuthorizeView>
