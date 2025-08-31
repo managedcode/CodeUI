@@ -105,6 +105,7 @@ All packages are upgraded to .NET 9.0 compatible versions with Central Package M
 - `Microsoft.EntityFrameworkCore.*` 9.0.8 - Latest data access framework
 - `Microsoft.Orleans.*` 9.2.1 - Latest distributed state management
 - Package versions centrally managed in `Directory.Packages.props`
+- `Microsoft.Orleans.*` 9.2.0 - For distributed state management
 
 ## CI/CD Pipeline
 
