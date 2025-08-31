@@ -15,32 +15,11 @@ public class Program
         builder.Services.AddRazorComponents()
             .AddInteractiveServerComponents();
 
-        // Configure database based on settings
-        var databaseProvider = builder.Configuration.GetValue<string>("DatabaseProvider") ?? "InMemory";
-        
+        // Configure SQLite database
         builder.Services.AddDbContext<ApplicationDbContext>(options =>
         {
-            switch (databaseProvider.ToLowerInvariant())
-            {
-                case "sqlite":
-                    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=codeui.db";
-                    options.UseSqlite(connectionString);
-                    break;
-                case "sqlserver":
-                    var sqlServerConnection = builder.Configuration.GetConnectionString("SqlServerConnection");
-                    if (!string.IsNullOrEmpty(sqlServerConnection))
-                    {
-                        options.UseSqlServer(sqlServerConnection);
-                    }
-                    else
-                    {
-                        options.UseInMemoryDatabase("DefaultConnection");
-                    }
-                    break;
-                default:
-                    options.UseInMemoryDatabase("DefaultConnection");
-                    break;
-            }
+            var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=codeui.db";
+            options.UseSqlite(connectionString);
         });
 
         // Configure Identity with settings from configuration
@@ -60,30 +39,24 @@ public class Program
 
         var app = builder.Build();
 
-        // Ensure database is created for SQLite/SQL Server
-        if (databaseProvider.ToLowerInvariant() != "inmemory")
+        // Ensure SQLite database is created
+        using (var scope = app.Services.CreateScope())
         {
-            using (var scope = app.Services.CreateScope())
+            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            
+            // Ensure directory exists for SQLite database
+            var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=codeui.db";
+            if (connectionString.Contains("Data Source=") && connectionString.Contains("/"))
             {
-                var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                
-                // Ensure directory exists for SQLite
-                if (databaseProvider.ToLowerInvariant() == "sqlite")
+                var dbPath = connectionString.Replace("Data Source=", "").Split(';')[0];
+                var directory = Path.GetDirectoryName(dbPath);
+                if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
                 {
-                    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=codeui.db";
-                    if (connectionString.Contains("Data Source=") && connectionString.Contains("/"))
-                    {
-                        var dbPath = connectionString.Replace("Data Source=", "").Split(';')[0];
-                        var directory = Path.GetDirectoryName(dbPath);
-                        if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
-                        {
-                            Directory.CreateDirectory(directory);
-                        }
-                    }
+                    Directory.CreateDirectory(directory);
                 }
-                
-                context.Database.EnsureCreated();
             }
+            
+            context.Database.EnsureCreated();
         }
 
         // Configure the HTTP request pipeline.
