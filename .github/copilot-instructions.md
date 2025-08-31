@@ -16,6 +16,8 @@ This repository is currently upgraded to .NET 9.0 with proper Aspire orchestrati
 The project provides a web application for managing AI CLI tools with features including terminal emulation, file management, git integration, and session management.
 
 ## Prerequisites and Environment Setup
+**⚠️ Important: You must install .NET 9 before you start!**
+
 - .NET 9.0 SDK is required and validated to work
 - C# 13 language features supported (latest with .NET 9)
 - Aspire workload for distributed application development
