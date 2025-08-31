@@ -4,16 +4,20 @@ CodeUI is a comprehensive web-based AI CLI tools management application built wi
 Always reference these instructions first and fallback to search or bash commands only when you encounter unexpected information that does not match the info here.
 
 ## Repository Status
-This repository is currently upgraded to .NET 9.0 with proper Aspire 9.4 orchestration and comprehensive testing infrastructure:
-- .NET 9.0 with C# 13 language support
-- Aspire Hosting for distributed application orchestration  
+This repository is currently upgraded to .NET 9.0 with proper Aspire orchestration and comprehensive testing infrastructure:
+- .NET 9.0 with C# 13 language support (latest features)
+- Aspire Hosting 9.4.1 for distributed application orchestration  
 - Blazor Server-side web application
+- Central Package Management for unified dependency management
+- Modern .slnx solution format (XML-based)
 - Comprehensive test coverage with unit and integration tests
 - Automated CI/CD pipeline with GitHub Actions
 
 The project provides a web application for managing AI CLI tools with features including terminal emulation, file management, git integration, and session management.
 
 ## Prerequisites and Environment Setup
+**⚠️ Important: You must install .NET 9 before you start!**
+
 - .NET 9.0 SDK is required and validated to work
 - C# 13 language features supported (latest with .NET 9)
 - Aspire workload for distributed application development
@@ -22,9 +26,12 @@ The project provides a web application for managing AI CLI tools with features i
 ## Working Effectively
 
 ### Project Structure
-The solution follows a clean architecture pattern:
+The solution follows a clean architecture pattern with modern .NET 9 features:
 ```
 CodeUI/
+├── CodeUI.slnx                   # Modern XML-based solution file (.NET 9+)
+├── Directory.Packages.props      # Central Package Management configuration
+├── global.json                   # .NET 9 SDK enforcement
 ├── CodeUI.AppHost/              # Aspire application host for orchestration
 ├── CodeUI.Web/                  # Blazor Server application
 ├── CodeUI.Core/                 # Core business logic and data models
@@ -35,12 +42,24 @@ CodeUI/
 ```
 
 ### Building and Testing
-- `dotnet restore` - Restore NuGet packages
-- `dotnet build` - Build the solution. TIMING: Takes 5-10 seconds. Set timeout to 180+ seconds.
-- `dotnet test` - Run all tests. TIMING: Takes 1-5 seconds for unit tests. Set timeout to 300+ seconds for integration tests.
+- `dotnet restore CodeUI.slnx` - Restore NuGet packages using .slnx solution
+- `dotnet build CodeUI.slnx` - Build the solution. TIMING: Takes 5-10 seconds. Set timeout to 180+ seconds.
+- `dotnet test CodeUI.slnx` - Run all tests. TIMING: Takes 1-5 seconds for unit tests. Set timeout to 300+ seconds for integration tests.
 - `dotnet run --project CodeUI.AppHost` - Run the Aspire orchestrated application
-- `dotnet build --configuration Release` - Build release version
-- `dotnet test --configuration Release --collect:"XPlat Code Coverage"` - Run tests with coverage
+- `dotnet build CodeUI.slnx --configuration Release` - Build release version
+- `dotnet test CodeUI.slnx --configuration Release --collect:"XPlat Code Coverage"` - Run tests with coverage
+
+### Central Package Management
+The solution uses .NET's Central Package Management feature:
+- **Directory.Packages.props**: Centrally manages all NuGet package versions
+- Individual project files reference packages without version attributes
+- Ensures consistent package versions across all projects
+- Simplifies dependency management and security updates
+
+### Solution Format (.slnx)
+- Uses modern .slnx XML-based solution format supported by .NET 9
+- Simpler and more maintainable than legacy .sln format
+- Better tooling support and version control friendly
 
 ### Aspire Application Development
 The application uses .NET Aspire for orchestration:
@@ -81,30 +100,34 @@ var response = await httpClient.GetAsync("/");
 - Test coverage is collected automatically and reported via Codecov
 
 ### Package Management
-All packages are upgraded to .NET 9.0 compatible versions:
-- `Aspire.Hosting` 9.4.0 - For application orchestration
-- `Microsoft.AspNetCore.*` 8.0.11 - For web application framework
-- `Microsoft.EntityFrameworkCore.*` 8.0.11 - For data access
+All packages are upgraded to .NET 9.0 compatible versions with Central Package Management:
+- `Aspire.Hosting` 9.4.1 - Latest Aspire for application orchestration
+- `Aspire.Hosting.Testing` 9.4.1 - For Aspire integration testing
+- `Microsoft.AspNetCore.*` 9.0.8 - Latest web application framework
+- `Microsoft.EntityFrameworkCore.*` 9.0.8 - Latest data access framework
+- `Microsoft.Orleans.*` 9.2.1 - Latest distributed state management
+- Package versions centrally managed in `Directory.Packages.props`
 - `Microsoft.Orleans.*` 9.2.0 - For distributed state management
 
 ## CI/CD Pipeline
 
 ### Build and Test Workflow
-- Builds solution with .NET 8.0
+- Builds solution with .NET 9.0 using CodeUI.slnx
 - Runs unit and integration tests
 - Collects test coverage with coverlet
 - Creates deployable artifacts for Windows, Linux, and macOS
+- Uses modern .slnx solution format throughout
 
 ### Aspire Integration Tests
 - Uses proper Aspire testing framework (not dashboard)
-- Tests distributed application functionality
+- Tests distributed application functionality with Aspire 9.4.1
 - Validates HTTP endpoints and application behavior
 
 ## Development Workflow
 
 ### Adding New Features
 1. Create feature branch from main
-2. Add/modify code using .NET 8.0 and C# 12 patterns
+2. Add/modify code using .NET 9.0 and C# 13 patterns
 3. Write corresponding unit tests in CodeUI.Tests
 4. Add integration tests in CodeUI.AspireTests if needed
 5. Build and test locally with full coverage
@@ -117,12 +140,13 @@ All packages are upgraded to .NET 9.0 compatible versions:
 - **Coverage**: Aim for comprehensive coverage with both unit and integration tests
 
 ### Key Technologies and Packages
-- **.NET 8.0 with C# 12** - Modern framework with latest language features
-- **Aspire Hosting** - Distributed application orchestration
+- **.NET 9.0 with C# 13** - Latest framework with newest language features
+- **Aspire Hosting 9.4.1** - Latest distributed application orchestration
 - **Blazor Server** - Interactive web UI with server-side rendering
 - **Orleans** - Distributed session and state management
 - **Entity Framework Core** - Data access and identity management
 - **xUnit** - Unit and integration testing framework
+- **Central Package Management** - Unified dependency management
 
 ## Timing Expectations and Timeouts
 
@@ -142,9 +166,9 @@ All packages are upgraded to .NET 9.0 compatible versions:
 ### Common Issues and Solutions
 
 **Build Failures**:
-- Ensure .NET 8.0 SDK is installed
-- Run `dotnet restore --force` to refresh packages
-- Check for package version conflicts
+- Ensure .NET 9.0 SDK is installed
+- Run `dotnet restore CodeUI.slnx --force` to refresh packages
+- Check for package version conflicts in Directory.Packages.props
 
 **Test Failures**:
 - Unit tests failing: Check WebApplicationFactory configuration
@@ -159,9 +183,9 @@ All packages are upgraded to .NET 9.0 compatible versions:
 ### Validation Commands
 ```bash
 # Quick validation sequence
-dotnet restore
-dotnet build --configuration Release
-dotnet test --configuration Release --collect:"XPlat Code Coverage"
+dotnet restore CodeUI.slnx
+dotnet build CodeUI.slnx --configuration Release
+dotnet test CodeUI.slnx --configuration Release --collect:"XPlat Code Coverage"
 dotnet format --verify-no-changes
 
 # Run specific test projects
@@ -175,6 +199,7 @@ dotnet test CodeUI.AspireTests --configuration Release
 - Follow clean architecture principles
 - Separate concerns between Web, Core, and Orleans projects
 - Use proper dependency injection and service registration
+- Leverage Central Package Management for dependency consistency
 
 ### Testing Strategy
 - Write unit tests for business logic in Core project
@@ -188,4 +213,10 @@ dotnet test CodeUI.AspireTests --configuration Release
 - Leverage Aspire testing framework for integration tests
 - Monitor application health and performance through Aspire dashboard (development only)
 
-This repository is production-ready with comprehensive testing, modern .NET 8.0 features, and proper distributed application orchestration using Aspire.
+### Modern .NET 9 Features
+- Use C# 13 language features for cleaner code
+- Leverage Central Package Management for consistency
+- Use .slnx solution format for better tooling support
+- Take advantage of .NET 9 performance improvements
+
+This repository is production-ready with comprehensive testing, modern .NET 9.0 features, Central Package Management, and proper distributed application orchestration using latest Aspire.

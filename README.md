@@ -1,34 +1,40 @@
 # CodeUI
 
-A modern .NET 8 application with Aspire orchestration and Blazor Server-side rendering.
+A modern .NET 9 application with Aspire orchestration, Blazor Server-side rendering, and Central Package Management.
 
 ## 🏗️ Project Structure
 
 ```
 CodeUI/
-├── CodeUI.sln                    # Main solution file
+├── CodeUI.slnx                   # Modern XML-based solution file (.NET 9+)
+├── Directory.Packages.props      # Central Package Management configuration
+├── global.json                   # .NET 9 SDK enforcement
 ├── CodeUI.AppHost/               # Aspire orchestration project
 ├── CodeUI.Web/                   # Blazor Server application
 ├── CodeUI.Core/                  # Core business logic and data models
 ├── CodeUI.Orleans/               # Orleans grain definitions
+├── CodeUI.Tests/                 # Unit tests using xUnit
+├── CodeUI.AspireTests/           # Integration tests using Aspire testing framework
 └── README.md                     # This file
 ```
 
 ## 🚀 Technology Stack
 
-- **.NET 8.0** - Latest LTS version of .NET
-- **C# 12** - Latest C# language features
-- **Aspire** - .NET Aspire for cloud-native orchestration
+- **.NET 9.0** - Latest version of .NET with C# 13 language features
+- **Aspire 9.4.1** - Latest .NET Aspire for cloud-native orchestration
+- **Central Package Management** - Unified dependency management across solution
 - **Blazor Server** - Server-side rendering with real-time updates
 - **ASP.NET Core Identity** - Built-in authentication and authorization
-- **Entity Framework Core** - Data access with In-Memory database for development
+- **Entity Framework Core** - Data access with SQLite database
 - **Orleans** - Virtual Actor Model for distributed applications
 
 ## 📋 Prerequisites
 
+**⚠️ Important: You must install .NET 9 before you start!**
+
 Before running this application, ensure you have:
 
-- [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) or later
+- **[.NET 9.0 SDK](https://dotnet.microsoft.com/download/dotnet/9.0)** - **REQUIRED**
 - [Docker](https://docs.docker.com/get-docker/) (for Aspire orchestration)
 - [Visual Studio 2022](https://visualstudio.microsoft.com/) or [VS Code](https://code.visualstudio.com/) (recommended)
 
@@ -41,23 +47,37 @@ git clone https://github.com/managedcode/CodeUI.git
 cd CodeUI
 ```
 
-### 2. Install .NET Aspire Workload
+### 2. Verify .NET 9 Installation
+
+```bash
+# Verify .NET 9 is installed
+dotnet --version
+# Should show 9.0.x or higher
+
+# List installed SDKs
+dotnet --list-sdks
+# Should include 9.0.x
+```
+
+### 3. Install .NET Aspire Workload
 
 ```bash
 dotnet workload update
 dotnet workload install aspire
 ```
 
-### 3. Restore Dependencies
+### 4. Restore Dependencies
 
 ```bash
-dotnet restore
+# Use .slnx solution format for .NET 9
+dotnet restore CodeUI.slnx
 ```
 
-### 4. Build the Solution
+### 5. Build the Solution
 
 ```bash
-dotnet build
+# Use .slnx solution format for .NET 9
+dotnet build CodeUI.slnx
 ```
 
 ## 🏃‍♂️ Running the Application
@@ -87,7 +107,7 @@ The application includes basic ASP.NET Core Identity authentication with:
 
 - **Registration** - Create new user accounts
 - **Login/Logout** - User authentication
-- **In-Memory Database** - For development (switch to SQL Server/PostgreSQL for production)
+- **In-Memory Database** - For development (switch to SQLite/SQL Server/PostgreSQL for production)
 - **Relaxed Password Policy** - For development convenience
 
 ### Default Settings:
@@ -122,8 +142,8 @@ The application includes basic ASP.NET Core Identity authentication with:
 ### Building
 
 ```bash
-# Build entire solution
-dotnet build
+# Build entire solution using .slnx format
+dotnet build CodeUI.slnx
 
 # Build specific project
 dotnet build CodeUI.Web
@@ -132,8 +152,11 @@ dotnet build CodeUI.Web
 ### Testing
 
 ```bash
-# Run tests (when added)
-dotnet test
+# Run all tests using .slnx format
+dotnet test CodeUI.slnx
+
+# Run tests with coverage
+dotnet test CodeUI.slnx --collect:"XPlat Code Coverage"
 ```
 
 ### Adding Migrations (when using a real database)
@@ -148,7 +171,9 @@ dotnet ef database update --project CodeUI.Core --startup-project CodeUI.Web
 
 ## 📁 Key Files
 
-- `CodeUI.sln` - Solution file containing all projects
+- `CodeUI.slnx` - Modern XML-based solution file for .NET 9
+- `Directory.Packages.props` - Central Package Management configuration
+- `global.json` - .NET 9 SDK enforcement
 - `CodeUI.AppHost/Program.cs` - Aspire orchestration configuration
 - `CodeUI.Web/Program.cs` - Web application startup and services configuration
 - `CodeUI.Core/Data/ApplicationDbContext.cs` - Entity Framework database context
@@ -157,13 +182,43 @@ dotnet ef database update --project CodeUI.Core --startup-project CodeUI.Web
 
 ## 🚀 Deployment
 
-For production deployment:
+### Self-Contained Deployment (Recommended)
+
+CodeUI supports self-contained deployment for production environments without requiring Docker or external dependencies.
+
+#### Quick Start
+```bash
+# Build for all platforms
+./deployment/scripts/build-all.sh
+
+# Manual build commands
+dotnet publish CodeUI.Web -c Release -r win-x64 --self-contained -p:PublishSingleFile=true
+dotnet publish CodeUI.Web -c Release -r linux-x64 --self-contained -p:PublishSingleFile=true
+dotnet publish CodeUI.Web -c Release -r osx-x64 --self-contained -p:PublishSingleFile=true
+```
+
+#### Platform Installation
+- **Windows**: Run `install-windows.ps1` as Administrator
+- **Linux**: Run `sudo ./install-unix.sh`
+- **macOS**: Run `sudo ./install-unix.sh`
+
+#### Features
+- ✅ Single executable (~150MB per platform)
+- ✅ SQLite database for data persistence
+- ✅ Windows Service / systemd / LaunchDaemon auto-start
+- ✅ No external dependencies required
+- ✅ Production-ready configuration
+
+See [deployment/README.md](deployment/README.md) for detailed instructions.
+
+### Traditional Deployment
+
+For development or containerized environments:
 
 1. **Update Database Provider**: Change from In-Memory to SQL Server/PostgreSQL in `Program.cs`
 2. **Configure Connection Strings**: Update `appsettings.json` with production database
 3. **Security Settings**: Review and harden authentication settings
 4. **Environment Variables**: Configure for production environment
-5. **Docker**: Use provided Dockerfile (when added) for containerization
 
 ## 🤝 Contributing
 

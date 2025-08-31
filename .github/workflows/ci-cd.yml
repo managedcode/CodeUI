@@ -24,14 +24,14 @@ jobs:
         dotnet-version: ${{ env.DOTNET_VERSION }}
     
     - name: Restore dependencies
-      run: dotnet restore
+      run: dotnet restore CodeUI.slnx
     
     - name: Build solution
-      run: dotnet build --configuration Release --no-restore
+      run: dotnet build CodeUI.slnx --configuration Release --no-restore
     
     - name: Run tests with coverage
       run: |
-        dotnet test --configuration Release --no-build --verbosity normal \
+        dotnet test CodeUI.slnx --configuration Release --no-build --verbosity normal \
           --collect:"XPlat Code Coverage" \
           --results-directory ./coverage \
           --logger trx \

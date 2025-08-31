@@ -1,0 +1,39 @@
+<!--
+  This file defines all NuGet package versions in a central location for the entire solution.
+  Individual projects reference packages without version attributes.
+  
+  For more information about Central Package Management, see:
+  https://learn.microsoft.com/nuget/consume-packages/central-package-management
+-->
+<Project>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- .NET Aspire packages -->
+    <PackageVersion Include="Aspire.Hosting" Version="9.4.1" />
+    <PackageVersion Include="Aspire.Hosting.Testing" Version="9.4.1" />
+
+    <!-- Microsoft AspNetCore packages -->
+    <PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="9.0.8" />
+    <PackageVersion Include="Microsoft.AspNetCore.Identity.UI" Version="9.0.8" />
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="9.0.8" />
+
+    <!-- Microsoft Entity Framework packages -->
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="9.0.8" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.8" />
+
+    <!-- Microsoft Orleans packages -->
+    <PackageVersion Include="Microsoft.Orleans.Core.Abstractions" Version="9.2.1" />
+
+    <!-- Testing packages -->
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageVersion Include="xunit" Version="2.9.2" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="2.8.2" />
+
+    <!-- Code coverage packages -->
+    <PackageVersion Include="coverlet.collector" Version="6.0.2" />
+    <PackageVersion Include="coverlet.msbuild" Version="6.0.2" />
+  </ItemGroup>
+</Project>

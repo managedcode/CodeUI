@@ -1,6 +1,8 @@
 using System.Net;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+// TODO: Consider migrating to Aspire.Hosting.Testing for distributed application testing
+// Example: using Aspire.Hosting.Testing;
 
 namespace CodeUI.AspireTests;
 

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <configSections>
+    <section name="system.applicationHost" type="System.WebServer.Configuration.SystemApplicationHostSection, System.WebServer, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a" allowDefinition="MachineToApplication" restartOnExternalChanges="false" />
+  </configSections>
+  
+  <system.webServer>
+    <aspNetCore processPath=".\CodeUI.Web.exe" 
+                arguments="--urls http://localhost:5000" 
+                stdoutLogEnabled="true" 
+                stdoutLogFile=".\Logs\stdout" 
+                hostingModel="OutOfProcess">
+      <environmentVariables>
+        <environmentVariable name="ASPNETCORE_ENVIRONMENT" value="Production" />
+        <environmentVariable name="DOTNET_ENVIRONMENT" value="Production" />
+      </environmentVariables>
+    </aspNetCore>
+  </system.webServer>
+</configuration>

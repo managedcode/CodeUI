@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.codeui.app</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/codeui/CodeUI.Web</string>
+        <string>--urls</string>
+        <string>http://localhost:5000</string>
+    </array>
+    <key>UserName</key>
+    <string>codeui</string>
+    <key>GroupName</key>
+    <string>codeui</string>
+    <key>WorkingDirectory</key>
+    <string>/opt/codeui</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/opt/codeui/Logs/stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>/opt/codeui/Logs/stderr.log</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>ASPNETCORE_ENVIRONMENT</key>
+        <string>Production</string>
+        <key>DOTNET_ENVIRONMENT</key>
+        <string>Production</string>
+    </dict>
+</dict>
+</plist>
