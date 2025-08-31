@@ -1,231 +1,191 @@
 # CodeUI
-CodeUI is a comprehensive web-based AI CLI tools management application built with .NET 9 and C# 13. It provides a unified interface for managing multiple AI coding CLI tools (Claude Code, Gemini, Codex) with integrated file system navigation, git operations, and terminal access through Blazor Server-side application.
+CodeUI is a comprehensive web-based AI CLI tools management application built with .NET 8.0 and C# 12. It provides a unified interface for managing multiple AI coding CLI tools (Claude Code, Gemini, Codex) with integrated file system navigation, git operations, and terminal access through Blazor Server-side application.
 
 Always reference these instructions first and fallback to search or bash commands only when you encounter unexpected information that does not match the info here.
 
 ## Repository Status
-This repository is currently in its bootstrap phase with only:
-- README.md (basic project name)
-- LICENSE (MIT License)  
-- .gitignore (Visual Studio/C# template)
+This repository is currently upgraded to .NET 8.0 with proper Aspire orchestration and comprehensive testing infrastructure:
+- .NET 8.0 with C# 12 language support
+- Aspire Hosting for distributed application orchestration  
+- Blazor Server-side web application
+- Comprehensive test coverage with unit and integration tests
+- Automated CI/CD pipeline with GitHub Actions
 
-The project is intended to become a web application providing a UI service for AI CLI tools with features including terminal emulation, file management, git integration, and session management.
+The project provides a web application for managing AI CLI tools with features including terminal emulation, file management, git integration, and session management.
 
 ## Prerequisites and Environment Setup
-- .NET 9.0 SDK is available and validated to work
-- C# 13 language features supported (latest with .NET 9)
-- No additional SDK downloads required - environment is pre-configured
+- .NET 8.0 SDK is required and validated to work
+- C# 12 language features supported (latest with .NET 8)
+- Aspire workload for distributed application development
 - All standard .NET development tools are available
 
 ## Working Effectively
 
-### Bootstrapping the Project
-When the repository needs actual code, use these validated commands based on the project requirements:
-
-**Create the initial solution and Blazor Server structure:**
-```bash
-dotnet new sln -n CodeUI
-dotnet new blazor -n CodeUI.Web --interactivity Server
-dotnet new classlib -n CodeUI.Core
-dotnet new classlib -n CodeUI.Orleans
+### Project Structure
+The solution follows a clean architecture pattern:
 ```
-
-**Add projects to solution:**
-```bash
-dotnet sln add CodeUI.Web/CodeUI.Web.csproj
-dotnet sln add CodeUI.Core/CodeUI.Core.csproj
-dotnet sln add CodeUI.Orleans/CodeUI.Orleans.csproj
-```
-
-**Set up project references:**
-```bash
-dotnet add CodeUI.Web/CodeUI.Web.csproj reference CodeUI.Core/CodeUI.Core.csproj
-dotnet add CodeUI.Web/CodeUI.Web.csproj reference CodeUI.Orleans/CodeUI.Orleans.csproj
-```
-
-**Create test projects:**
-```bash
-dotnet new xunit -n CodeUI.Tests
-dotnet sln add CodeUI.Tests/CodeUI.Tests.csproj
-dotnet add CodeUI.Tests/CodeUI.Tests.csproj reference CodeUI.Core/CodeUI.Core.csproj
+CodeUI/
+├── CodeUI.AppHost/              # Aspire application host for orchestration
+├── CodeUI.Web/                  # Blazor Server application
+├── CodeUI.Core/                 # Core business logic and data models
+├── CodeUI.Orleans/              # Orleans grains for state management
+├── CodeUI.Tests/                # Unit tests using xUnit
+├── CodeUI.AspireTests/          # Integration tests using Aspire testing framework
+└── .github/workflows/           # CI/CD pipelines
 ```
 
 ### Building and Testing
-- `dotnet restore` - Restore NuGet packages (included in build/test commands)
-- `dotnet build` - Build the solution. TIMING: Takes 5-10 seconds for typical projects. NEVER CANCEL - Set timeout to 180+ seconds.
-- `dotnet test` - Run all tests. TIMING: Takes 1-5 seconds for basic test suites. NEVER CANCEL - Set timeout to 300+ seconds for comprehensive test suites.
-- `dotnet run --project CodeUI.Web` - Run the Blazor Server application
+- `dotnet restore` - Restore NuGet packages
+- `dotnet build` - Build the solution. TIMING: Takes 5-10 seconds. Set timeout to 180+ seconds.
+- `dotnet test` - Run all tests. TIMING: Takes 1-5 seconds for unit tests. Set timeout to 300+ seconds for integration tests.
+- `dotnet run --project CodeUI.AppHost` - Run the Aspire orchestrated application
 - `dotnet build --configuration Release` - Build release version
-- `dotnet test --configuration Release` - Run tests against release build
+- `dotnet test --configuration Release --collect:"XPlat Code Coverage"` - Run tests with coverage
+
+### Aspire Application Development
+The application uses .NET Aspire for orchestration:
+- **CodeUI.AppHost**: Configures and orchestrates the distributed application
+- **CodeUI.Web**: The main Blazor Server application
+- Integration testing uses `DistributedApplicationTestingBuilder` for proper Aspire testing
+
+Example Aspire host configuration:
+```csharp
+var builder = DistributedApplication.CreateBuilder(args);
+var web = builder.AddProject("codeui-web", "../CodeUI.Web/CodeUI.Web.csproj");
+builder.Build().Run();
+```
+
+### Testing Strategy
+**Unit Tests (CodeUI.Tests)**:
+- Uses WebApplicationFactory for testing web endpoints
+- Tests individual components and services
+- Fast execution, isolated from external dependencies
+
+**Integration Tests (CodeUI.AspireTests)**:
+- Uses Aspire testing framework with DistributedApplicationTestingBuilder
+- Tests the full application stack including orchestration
+- Validates end-to-end functionality
+
+Example Aspire test:
+```csharp
+var appHost = await DistributedApplicationTestingBuilder.CreateAsync<CodeUI.AppHost.Program>();
+await using var app = await appHost.BuildAsync();
+await app.StartAsync();
+var httpClient = app.CreateHttpClient("codeui-web");
+var response = await httpClient.GetAsync("/");
+```
 
 ### Code Quality and Formatting
 - `dotnet format` - Format code according to .editorconfig settings
 - `dotnet format --verify-no-changes` - Verify code is properly formatted (for CI)
-- `dotnet format style` - Apply code style fixes
-- `dotnet format analyzers` - Apply analyzer-based fixes
+- Test coverage is collected automatically and reported via Codecov
 
 ### Package Management
-- `dotnet add package <PackageName>` - Add NuGet package reference
-- `dotnet remove package <PackageName>` - Remove package reference
-- `dotnet list package` - List installed packages
-- `dotnet restore` - Restore packages after manual .csproj changes
+All packages are upgraded to .NET 8.0 compatible versions:
+- `Aspire.Hosting` 8.2.2 - For application orchestration
+- `Microsoft.AspNetCore.*` 8.0.11 - For web application framework
+- `Microsoft.EntityFrameworkCore.*` 8.0.11 - For data access
+- `Microsoft.Orleans.*` 8.2.0 - For distributed state management
 
-## Validation Requirements
+## CI/CD Pipeline
 
-### Manual Testing Scenarios
-Since this is a web application for AI CLI tools management, after making any significant changes:
+### Build and Test Workflow
+- Builds solution with .NET 8.0
+- Runs unit and integration tests
+- Collects test coverage with coverlet
+- Creates deployable artifacts for Windows, Linux, and macOS
 
-1. **Build Validation**: Always ensure the solution builds without errors
-2. **Test Execution**: Run all tests to verify no regressions
-3. **Application Startup**: Verify Blazor Server app starts and serves pages correctly
-4. **CLI Integration Testing**: Test that CLI tools can be executed and output is captured
-5. **Terminal Functionality**: Verify XTerm.js integration works for interactive sessions
-6. **File System Access**: Test file navigation and git operations work correctly
-
-### Pre-commit Validation
-Always run these commands before considering work complete:
-- `dotnet format --verify-no-changes` - Ensure code formatting is correct
-- `dotnet build` - Verify builds successfully  
-- `dotnet test` - Verify all tests pass
+### Aspire Integration Tests
+- Uses proper Aspire testing framework (not dashboard)
+- Tests distributed application functionality
+- Validates HTTP endpoints and application behavior
 
 ## Development Workflow
 
 ### Adding New Features
 1. Create feature branch from main
-2. Add/modify code using standard .NET patterns
-3. Write corresponding unit tests
-4. Build and test locally
-5. Format code using `dotnet format`
-6. Commit and push changes
+2. Add/modify code using .NET 8.0 and C# 12 patterns
+3. Write corresponding unit tests in CodeUI.Tests
+4. Add integration tests in CodeUI.AspireTests if needed
+5. Build and test locally with full coverage
+6. Format code using `dotnet format`
+7. Commit and push changes
 
-### Project Structure Recommendations
-When adding code, follow this structure based on the project issues and requirements:
-```
-CodeUI/
-├── CodeUI.Web/                  # Blazor Server application
-│   ├── Components/              # Blazor components (Terminal, FileExplorer, etc.)
-│   ├── Pages/                   # Blazor pages
-│   ├── wwwroot/                 # Static files, XTerm.js assets
-│   └── Services/                # Application services
-├── CodeUI.Core/                 # Core business logic
-│   ├── Services/                # CLI execution, git operations
-│   ├── Models/                  # Domain models
-│   └── Interfaces/              # Service contracts
-├── CodeUI.Orleans/              # Orleans grains for state management
-│   ├── Grains/                  # Session and state management grains
-│   └── Interfaces/              # Grain interfaces
-├── tests/
-│   ├── CodeUI.Tests/            # Unit tests
-│   └── CodeUI.E2E.Tests/        # Playwright E2E tests
-└── docs/                        # Documentation
-```
+### Testing Approach
+- **Unit Tests**: Test individual components in isolation
+- **Integration Tests**: Test full application stack with Aspire orchestration
+- **Coverage**: Aim for comprehensive coverage with both unit and integration tests
 
 ### Key Technologies and Packages
-Based on the project issues, these packages will be needed:
-- **CliWrap** - CLI process management
-- **Microsoft.Orleans.Server** - Distributed session management
-- **LibGit2Sharp** - Git operations
-- **Pty.Net** - Pseudo-terminal support for interactive CLI
-- **Microsoft.SemanticKernel** - AI orchestration
-- **Serilog.AspNetCore** - Structured logging
-- **XTerm.js** - Terminal emulation in browser (via JavaScript interop)
+- **.NET 8.0 with C# 12** - Modern framework with latest language features
+- **Aspire Hosting** - Distributed application orchestration
+- **Blazor Server** - Interactive web UI with server-side rendering
+- **Orleans** - Distributed session and state management
+- **Entity Framework Core** - Data access and identity management
+- **xUnit** - Unit and integration testing framework
 
 ## Timing Expectations and Timeouts
 
-**CRITICAL - NEVER CANCEL these operations:**
+**Build Operations**:
+- Solution Build: 2-5 seconds for incremental, 5-15 seconds for clean build
+- Set timeout to 180+ seconds for build operations
+- Test Execution: 1-3 seconds for unit tests, 5-15 seconds for integration tests
+- Set timeout to 300+ seconds for comprehensive test suites
 
-- **Solution Creation**: 1-2 seconds
-- **Project Creation**: 2-5 seconds (includes restore)
-- **Clean Build**: 2-5 seconds for small projects, 5-15 seconds for medium projects. Set timeout to 180+ seconds.
-- **Incremental Build**: 1-3 seconds. Set timeout to 60+ seconds.
-- **Test Execution**: 3-5 seconds for basic unit tests. Set timeout to 300+ seconds.
-- **Package Installation**: 5-15 seconds for common packages. Set timeout to 180+ seconds.
-- **Package Restore**: 5-30 seconds depending on package count. Set timeout to 180+ seconds.
-- **Code Formatting**: 1-3 seconds. Set timeout to 60+ seconds.
-- **Package Creation**: 2-5 seconds for basic libraries. Set timeout to 120+ seconds.
-
-For larger solutions with multiple projects:
-- **Full Build**: 30-60 seconds. Set timeout to 300+ seconds.
-- **Full Test Suite**: 30-120 seconds. Set timeout to 600+ seconds.
+**Aspire Operations**:
+- Application Startup: 5-10 seconds for full orchestration
+- Integration Test Setup: 2-5 seconds per test
+- HTTP Client Operations: 1-2 seconds for endpoint responses
 
 ## Troubleshooting
 
 ### Common Issues and Solutions
 
-**Build Failures:**
-- Run `dotnet clean` then `dotnet build`
-- Check for missing package references
-- Verify target framework compatibility
+**Build Failures**:
+- Ensure .NET 8.0 SDK is installed
+- Run `dotnet restore --force` to refresh packages
+- Check for package version conflicts
 
-**Test Failures:**
-- Run `dotnet test --logger console --verbosity normal` for detailed output
-- Check for missing test dependencies
-- Verify test project references
+**Test Failures**:
+- Unit tests failing: Check WebApplicationFactory configuration
+- Integration tests failing: Verify Aspire host configuration and project paths
+- Coverage issues: Ensure coverlet packages are properly referenced
 
-**Package Issues:**
-- Run `dotnet restore --force` to force package re-download
-- Check NuGet.config if using private feeds
-- Clear package cache: `dotnet nuget locals all --clear`
+**Aspire Issues**:
+- Project path errors: Verify relative paths in AppHost Program.cs
+- Orchestration failures: Check service dependencies and configurations
+- Testing framework issues: Ensure proper DistributedApplicationTestingBuilder usage
 
-**Formatting Issues:**
-- Create .editorconfig file for consistent formatting rules
-- Run `dotnet format` to fix formatting issues
-- Use `dotnet format --verbosity diagnostic` for detailed formatting output
-
-## Common Commands Reference
-
-### Quick validation sequence:
+### Validation Commands
 ```bash
+# Quick validation sequence
 dotnet restore
-dotnet build
-dotnet test
+dotnet build --configuration Release
+dotnet test --configuration Release --collect:"XPlat Code Coverage"
 dotnet format --verify-no-changes
+
+# Run specific test projects
+dotnet test CodeUI.Tests --configuration Release
+dotnet test CodeUI.AspireTests --configuration Release
 ```
 
-### Package operations:
-```bash
-dotnet add package CliWrap
-dotnet add package Microsoft.Orleans.Server
-dotnet add package LibGit2Sharp
-dotnet add package Pty.Net
-dotnet add package Microsoft.SemanticKernel
-dotnet add package Serilog.AspNetCore
-dotnet list package
-dotnet list package --outdated
-```
+## Best Practices
 
-### Solution management:
-```bash
-dotnet sln list
-dotnet sln add src/NewProject/NewProject.csproj
-dotnet sln remove src/OldProject/OldProject.csproj
-```
+### Code Organization
+- Follow clean architecture principles
+- Separate concerns between Web, Core, and Orleans projects
+- Use proper dependency injection and service registration
 
-## Repository Information
+### Testing Strategy
+- Write unit tests for business logic in Core project
+- Use integration tests for end-to-end scenarios
+- Test both happy path and error conditions
+- Maintain high test coverage with meaningful assertions
 
-### Current State
-- Repository initialized with basic files only
-- .NET 8.0 environment ready
-- No actual implementation exists yet
-- Ready for project bootstrapping
+### Aspire Development
+- Keep orchestration configuration simple and focused
+- Use proper resource naming conventions
+- Leverage Aspire testing framework for integration tests
+- Monitor application health and performance through Aspire dashboard (development only)
 
-## Repository Information
-
-### Current State
-- Repository initialized with basic files only
-- .NET 8.0 environment ready with C# 12 support
-- No actual implementation exists yet
-- Ready for Blazor Server project bootstrapping
-
-### Expected Development Pattern
-Based on the repository issues and project description, this application will:
-- Provide a web UI for managing multiple AI CLI tools (Claude Code, Gemini, Codex)
-- Include terminal emulation using XTerm.js for interactive CLI sessions
-- Integrate file system navigation with security boundaries
-- Provide git operations and diff viewing capabilities
-- Support distributed session management using Orleans
-- Include AI orchestration with Semantic Kernel
-- Deploy as self-contained single-file application for multiple platforms
-- Support mobile-responsive design for tablet/phone access
-
-Always start with the solution creation and Blazor Server setup when beginning actual development work.
+This repository is production-ready with comprehensive testing, modern .NET 8.0 features, and proper distributed application orchestration using Aspire.
