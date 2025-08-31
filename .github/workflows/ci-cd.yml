@@ -7,7 +7,7 @@ on:
     branches: [ main ]
 
 env:
-  DOTNET_VERSION: '8.0.x'
+  DOTNET_VERSION: '9.0.x'
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
   DOTNET_NOLOGO: true
 
@@ -29,8 +29,20 @@ jobs:
     - name: Build solution
       run: dotnet build --configuration Release --no-restore
     
-    - name: Run tests
-      run: dotnet test --configuration Release --no-build --verbosity normal
+    - name: Run tests with coverage
+      run: |
+        dotnet test --configuration Release --no-build --verbosity normal \
+          --collect:"XPlat Code Coverage" \
+          --results-directory ./coverage \
+          --logger trx \
+          --logger "console;verbosity=detailed"
+    
+    - name: Upload coverage reports to Codecov
+      uses: codecov/codecov-action@v5
+      with:
+        directory: ./coverage
+        flags: unittests
+        name: codecov-umbrella
     
     - name: Build AppHost for testing
       run: dotnet build CodeUI.AppHost --configuration Release --no-restore

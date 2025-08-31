@@ -1,5 +1,15 @@
-﻿var builder = DistributedApplication.CreateBuilder(args);
+﻿using Aspire.Hosting;
 
-var web = builder.AddProject<Projects.CodeUI_Web>("codeui-web");
+namespace CodeUI.AppHost;
 
-builder.Build().Run();
+public class Program
+{
+    public static void Main(string[] args)
+    {
+        var builder = DistributedApplication.CreateBuilder(args);
+
+        var web = builder.AddProject("codeui-web", "../CodeUI.Web/CodeUI.Web.csproj");
+
+        builder.Build().Run();
+    }
+}
