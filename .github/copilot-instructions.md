@@ -1,5 +1,5 @@
 # CodeUI
-CodeUI is a .NET UI library project currently in its initial development phase. The repository contains basic infrastructure files but no implementation yet.
+CodeUI is a comprehensive web-based AI CLI tools management application built with .NET 8 and C# 12. It provides a unified interface for managing multiple AI coding CLI tools (Claude Code, Gemini, Codex) with integrated file system navigation, git operations, and terminal access through Blazor Server-side application.
 
 Always reference these instructions first and fallback to search or bash commands only when you encounter unexpected information that does not match the info here.
 
@@ -9,27 +9,39 @@ This repository is currently in its bootstrap phase with only:
 - LICENSE (MIT License)  
 - .gitignore (Visual Studio/C# template)
 
-The project is intended to become a .NET UI library based on the naming and .gitignore configuration.
+The project is intended to become a web application providing a UI service for AI CLI tools with features including terminal emulation, file management, git integration, and session management.
 
 ## Prerequisites and Environment Setup
 - .NET 8.0 SDK is available and validated to work
+- C# 12 language features supported (latest with .NET 8)
+- Ready for upgrade to .NET 9 and C# 13 when available in environment
 - No additional SDK downloads required - environment is pre-configured
 - All standard .NET development tools are available
 
 ## Working Effectively
 
 ### Bootstrapping the Project
-When the repository needs actual code, use these validated commands:
+When the repository needs actual code, use these validated commands based on the project requirements:
 
-**Create a new solution:**
+**Create the initial solution and Blazor Server structure:**
 ```bash
 dotnet new sln -n CodeUI
+dotnet new blazor -n CodeUI.Web --interactivity Server
+dotnet new classlib -n CodeUI.Core
+dotnet new classlib -n CodeUI.Orleans
 ```
 
-**Create core library projects:**
+**Add projects to solution:**
 ```bash
-dotnet new classlib -n CodeUI.Core
+dotnet sln add CodeUI.Web/CodeUI.Web.csproj
 dotnet sln add CodeUI.Core/CodeUI.Core.csproj
+dotnet sln add CodeUI.Orleans/CodeUI.Orleans.csproj
+```
+
+**Set up project references:**
+```bash
+dotnet add CodeUI.Web/CodeUI.Web.csproj reference CodeUI.Core/CodeUI.Core.csproj
+dotnet add CodeUI.Web/CodeUI.Web.csproj reference CodeUI.Orleans/CodeUI.Orleans.csproj
 ```
 
 **Create test projects:**
@@ -43,6 +55,7 @@ dotnet add CodeUI.Tests/CodeUI.Tests.csproj reference CodeUI.Core/CodeUI.Core.cs
 - `dotnet restore` - Restore NuGet packages (included in build/test commands)
 - `dotnet build` - Build the solution. TIMING: Takes 5-10 seconds for typical projects. NEVER CANCEL - Set timeout to 180+ seconds.
 - `dotnet test` - Run all tests. TIMING: Takes 1-5 seconds for basic test suites. NEVER CANCEL - Set timeout to 300+ seconds for comprehensive test suites.
+- `dotnet run --project CodeUI.Web` - Run the Blazor Server application
 - `dotnet build --configuration Release` - Build release version
 - `dotnet test --configuration Release` - Run tests against release build
 
@@ -61,12 +74,14 @@ dotnet add CodeUI.Tests/CodeUI.Tests.csproj reference CodeUI.Core/CodeUI.Core.cs
 ## Validation Requirements
 
 ### Manual Testing Scenarios
-Since this will be a UI library, after making any significant changes:
+Since this is a web application for AI CLI tools management, after making any significant changes:
 
 1. **Build Validation**: Always ensure the solution builds without errors
 2. **Test Execution**: Run all tests to verify no regressions
-3. **Package Creation**: For UI libraries, test that packages can be created with `dotnet pack`
-4. **Consumer Testing**: When UI components exist, create a simple test application that references and uses the library
+3. **Application Startup**: Verify Blazor Server app starts and serves pages correctly
+4. **CLI Integration Testing**: Test that CLI tools can be executed and output is captured
+5. **Terminal Functionality**: Verify XTerm.js integration works for interactive sessions
+6. **File System Access**: Test file navigation and git operations work correctly
 
 ### Pre-commit Validation
 Always run these commands before considering work complete:
@@ -85,20 +100,36 @@ Always run these commands before considering work complete:
 6. Commit and push changes
 
 ### Project Structure Recommendations
-When adding code, follow these .NET conventions:
+When adding code, follow this structure based on the project issues and requirements:
 ```
 CodeUI/
-├── src/
-│   ├── CodeUI.Core/           # Core library functionality
-│   ├── CodeUI.Controls/       # UI controls if applicable
-│   └── CodeUI.Theming/        # Theming/styling if applicable
+├── CodeUI.Web/                  # Blazor Server application
+│   ├── Components/              # Blazor components (Terminal, FileExplorer, etc.)
+│   ├── Pages/                   # Blazor pages
+│   ├── wwwroot/                 # Static files, XTerm.js assets
+│   └── Services/                # Application services
+├── CodeUI.Core/                 # Core business logic
+│   ├── Services/                # CLI execution, git operations
+│   ├── Models/                  # Domain models
+│   └── Interfaces/              # Service contracts
+├── CodeUI.Orleans/              # Orleans grains for state management
+│   ├── Grains/                  # Session and state management grains
+│   └── Interfaces/              # Grain interfaces
 ├── tests/
-│   ├── CodeUI.Core.Tests/     # Unit tests for core
-│   └── CodeUI.Integration.Tests/  # Integration tests
-├── samples/
-│   └── CodeUI.Sample.App/     # Sample application demonstrating usage
-└── docs/                      # Documentation
+│   ├── CodeUI.Tests/            # Unit tests
+│   └── CodeUI.E2E.Tests/        # Playwright E2E tests
+└── docs/                        # Documentation
 ```
+
+### Key Technologies and Packages
+Based on the project issues, these packages will be needed:
+- **CliWrap** - CLI process management
+- **Microsoft.Orleans.Server** - Distributed session management
+- **LibGit2Sharp** - Git operations
+- **Pty.Net** - Pseudo-terminal support for interactive CLI
+- **Microsoft.SemanticKernel** - AI orchestration
+- **Serilog.AspNetCore** - Structured logging
+- **XTerm.js** - Terminal emulation in browser (via JavaScript interop)
 
 ## Timing Expectations and Timeouts
 
@@ -154,11 +185,14 @@ dotnet format --verify-no-changes
 
 ### Package operations:
 ```bash
-dotnet add package Microsoft.Extensions.DependencyInjection
-dotnet add package Microsoft.Extensions.Logging
+dotnet add package CliWrap
+dotnet add package Microsoft.Orleans.Server
+dotnet add package LibGit2Sharp
+dotnet add package Pty.Net
+dotnet add package Microsoft.SemanticKernel
+dotnet add package Serilog.AspNetCore
 dotnet list package
 dotnet list package --outdated
-dotnet pack --configuration Release
 ```
 
 ### Solution management:
@@ -176,12 +210,23 @@ dotnet sln remove src/OldProject/OldProject.csproj
 - No actual implementation exists yet
 - Ready for project bootstrapping
 
-### Expected Development Pattern
-Based on the repository name "CodeUI" and .gitignore configuration, this project will likely:
-- Provide .NET UI components or controls
-- Target multiple .NET frameworks
-- Include theming/styling capabilities
-- Provide sample applications demonstrating usage
-- Follow standard .NET library patterns and conventions
+## Repository Information
 
-Always start with solution creation and core library setup when beginning actual development work.
+### Current State
+- Repository initialized with basic files only
+- .NET 8.0 environment ready with C# 12 support
+- No actual implementation exists yet
+- Ready for Blazor Server project bootstrapping
+
+### Expected Development Pattern
+Based on the repository issues and project description, this application will:
+- Provide a web UI for managing multiple AI CLI tools (Claude Code, Gemini, Codex)
+- Include terminal emulation using XTerm.js for interactive CLI sessions
+- Integrate file system navigation with security boundaries
+- Provide git operations and diff viewing capabilities
+- Support distributed session management using Orleans
+- Include AI orchestration with Semantic Kernel
+- Deploy as self-contained single-file application for multiple platforms
+- Support mobile-responsive design for tablet/phone access
+
+Always start with the solution creation and Blazor Server setup when beginning actual development work.
