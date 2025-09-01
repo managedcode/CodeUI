@@ -248,7 +248,6 @@
             await CliExecutor.ExecuteAsync(cmd, args);
             
             // Add prompt after command completion
-            await Task.Delay(100); // Small delay to ensure output is written
             await JSRuntime.InvokeVoidAsync("xtermTerminal.write", _terminalId, "\r\n$ ");
         }
         catch (Exception ex)
