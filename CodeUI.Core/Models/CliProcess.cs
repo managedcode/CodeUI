@@ -27,6 +27,42 @@ public enum ProcessState
 }
 
 /// <summary>
+/// Represents signals that can be sent to a process.
+/// </summary>
+public enum ProcessSignal
+{
+    /// <summary>
+    /// SIGINT - Interrupt signal (Ctrl+C).
+    /// </summary>
+    Interrupt = 2,
+    
+    /// <summary>
+    /// SIGTERM - Termination signal.
+    /// </summary>
+    Terminate = 15,
+    
+    /// <summary>
+    /// SIGKILL - Kill signal (cannot be caught or ignored).
+    /// </summary>
+    Kill = 9,
+    
+    /// <summary>
+    /// SIGQUIT - Quit signal (Ctrl+\).
+    /// </summary>
+    Quit = 3,
+    
+    /// <summary>
+    /// SIGSTOP - Stop signal (Ctrl+Z).
+    /// </summary>
+    Stop = 19,
+    
+    /// <summary>
+    /// SIGCONT - Continue signal.
+    /// </summary>
+    Continue = 18
+}
+
+/// <summary>
 /// Represents a line of output from a CLI process.
 /// </summary>
 public record OutputLine

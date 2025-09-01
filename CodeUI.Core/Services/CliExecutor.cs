@@ -21,6 +21,11 @@ public partial class CliExecutor : ICliExecutor
     private AnonymousPipeServerStream? _stdinPipeServer;
     private AnonymousPipeClientStream? _stdinPipeClient;
     private StreamWriter? _stdinWriter;
+    
+    // PTY-related fields (simplified implementation for now)
+    private bool _isPtyProcess;
+    private (int Columns, int Rows)? _terminalSize;
+    
     private bool _disposed;
 
     /// <summary>
@@ -75,7 +80,7 @@ public partial class CliExecutor : ICliExecutor
                 .WithWorkingDirectory(workingDirectory)
                 .WithValidation(CommandResultValidation.None);
 
-            // Only set up interactive input if requested
+            // Set up input/output pipes using CliWrap's PipeTarget for better performance
             if (enableInteractiveInput)
             {
                 // Create anonymous pipe for stdin
@@ -85,6 +90,27 @@ public partial class CliExecutor : ICliExecutor
 
                 commandBuilder = commandBuilder.WithStandardInputPipe(PipeSource.FromStream(_stdinPipeClient));
             }
+
+            // Use PipeTarget.ToDelegate for more efficient real-time stream handling
+            commandBuilder = commandBuilder
+                .WithStandardOutputPipe(PipeTarget.ToDelegate(line =>
+                {
+                    var stdOutLine = new OutputLine
+                    {
+                        Text = ProcessAnsiCodes(line),
+                        IsStdOut = true
+                    };
+                    _outputSubject.OnNext(stdOutLine);
+                }))
+                .WithStandardErrorPipe(PipeTarget.ToDelegate(line =>
+                {
+                    var stdErrLine = new OutputLine
+                    {
+                        Text = ProcessAnsiCodes(line),
+                        IsStdOut = false
+                    };
+                    _outputSubject.OnNext(stdErrLine);
+                }));
 
             _currentCommand = commandBuilder;
 
@@ -100,7 +126,9 @@ public partial class CliExecutor : ICliExecutor
 
             _currentProcess = processInfo;
 
-            // Start the process in the background
+            // Start the process in the background with hybrid approach:
+            // - Use PipeTarget delegates for efficient stream handling
+            // - Use ListenAsync for process lifecycle events (Started, Exited)
             _ = Task.Run(async () =>
             {
                 try
@@ -113,24 +141,6 @@ public partial class CliExecutor : ICliExecutor
                                 _currentProcess = _currentProcess with { ProcessId = started.ProcessId };
                                 break;
 
-                            case StandardOutputCommandEvent stdOut:
-                                var stdOutLine = new OutputLine
-                                {
-                                    Text = ProcessAnsiCodes(stdOut.Text),
-                                    IsStdOut = true
-                                };
-                                _outputSubject.OnNext(stdOutLine);
-                                break;
-
-                            case StandardErrorCommandEvent stdErr:
-                                var stdErrLine = new OutputLine
-                                {
-                                    Text = ProcessAnsiCodes(stdErr.Text),
-                                    IsStdOut = false
-                                };
-                                _outputSubject.OnNext(stdErrLine);
-                                break;
-
                             case ExitedCommandEvent exited:
                                 var finalState = exited.ExitCode == 0 ? ProcessState.Completed : ProcessState.Failed;
                                 _currentProcess = _currentProcess with
@@ -139,7 +149,10 @@ public partial class CliExecutor : ICliExecutor
                                     EndTime = DateTime.UtcNow,
                                     ExitCode = exited.ExitCode
                                 };
-                                break;
+                                return; // Exit the loop after process completion
+                                
+                            // Note: StandardOutput and StandardError events are handled by PipeTarget delegates
+                            // This provides better performance than processing them here
                         }
                     }
                 }
@@ -217,20 +230,29 @@ public partial class CliExecutor : ICliExecutor
             throw new ObjectDisposedException(nameof(CliExecutor));
         ArgumentNullException.ThrowIfNull(input);
         
-        if (_currentCommand == null || _currentProcess?.State != ProcessState.Running)
+        if (_currentProcess?.State != ProcessState.Running)
         {
             throw new InvalidOperationException("No process is currently running to send input to.");
         }
 
-        if (_stdinWriter == null)
-        {
-            throw new InvalidOperationException("Stdin stream is not available for the current process.");
-        }
-
         try
         {
-            await _stdinWriter.WriteAsync(input);
-            await _stdinWriter.FlushAsync();
+            if (_isPtyProcess && _stdinWriter != null)
+            {
+                // For PTY processes, send input through the stdin writer
+                await _stdinWriter.WriteAsync(input);
+                await _stdinWriter.FlushAsync();
+            }
+            else if (_stdinWriter != null)
+            {
+                // Send input to regular process
+                await _stdinWriter.WriteAsync(input);
+                await _stdinWriter.FlushAsync();
+            }
+            else
+            {
+                throw new InvalidOperationException("Stdin stream is not available for the current process.");
+            }
         }
         catch (Exception ex)
         {
@@ -386,6 +408,241 @@ public partial class CliExecutor : ICliExecutor
     }
 
     /// <inheritdoc />
+    public async Task<ProcessInfo> StartPtyProcessAsync(string command, string arguments, string? workingDirectory = null, 
+        (int Columns, int Rows)? terminalSize = null, CancellationToken cancellationToken = default)
+    {
+        if (_disposed)
+            throw new ObjectDisposedException(nameof(CliExecutor));
+        
+        ArgumentException.ThrowIfNullOrWhiteSpace(command);
+        
+        await _executionSemaphore.WaitAsync(cancellationToken);
+        
+        try
+        {
+            // Stop any existing process
+            if (_currentProcess?.State == ProcessState.Running)
+            {
+                await StopProcessInternalAsync(graceful: false, cancellationToken);
+            }
+            
+            _currentCancellationSource = new CancellationTokenSource();
+            _terminalSize = terminalSize ?? (80, 24);
+            _isPtyProcess = true;
+            
+            // For PTY processes, we use enhanced CliWrap with environment variables for terminal size
+            var envVars = new Dictionary<string, string?>
+            {
+                ["COLUMNS"] = _terminalSize.Value.Columns.ToString(),
+                ["LINES"] = _terminalSize.Value.Rows.ToString(),
+                ["TERM"] = "xterm-256color"
+            };
+            
+            // Create pipes for stdin communication
+            _stdinPipeServer = new AnonymousPipeServerStream(PipeDirection.Out, HandleInheritability.Inheritable);
+            _stdinPipeClient = new AnonymousPipeClientStream(PipeDirection.In, _stdinPipeServer.GetClientHandleAsString());
+            _stdinWriter = new StreamWriter(_stdinPipeServer) { AutoFlush = true };
+            
+            var cmd = Cli.Wrap(command)
+                .WithArguments(arguments)
+                .WithWorkingDirectory(workingDirectory ?? Environment.CurrentDirectory)
+                .WithStandardInputPipe(PipeSource.FromStream(_stdinPipeClient))
+                .WithEnvironmentVariables(envVars)
+                .WithStandardOutputPipe(PipeTarget.ToDelegate(line =>
+                {
+                    var outputLine = new OutputLine
+                    {
+                        Text = line, // Preserve ANSI codes for PTY processes
+                        IsStdOut = true
+                    };
+                    _outputSubject.OnNext(outputLine);
+                }))
+                .WithStandardErrorPipe(PipeTarget.ToDelegate(line =>
+                {
+                    var errorLine = new OutputLine
+                    {
+                        Text = line, // Preserve ANSI codes for PTY processes
+                        IsStdOut = false
+                    };
+                    _outputSubject.OnNext(errorLine);
+                }))
+                .WithValidation(CommandResultValidation.None);
+            
+            _currentCommand = cmd;
+            
+            var processInfo = new ProcessInfo
+            {
+                ProcessId = 0, // Will be updated when process starts
+                State = ProcessState.Running,
+                Command = command,
+                Arguments = arguments,
+                WorkingDirectory = workingDirectory ?? Environment.CurrentDirectory,
+                StartTime = DateTime.UtcNow
+            };
+            
+            _currentProcess = processInfo;
+            
+            // Start the PTY process with hybrid approach for optimal performance
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await foreach (var cmdEvent in _currentCommand.ListenAsync(_currentCancellationSource.Token))
+                    {
+                        switch (cmdEvent)
+                        {
+                            case StartedCommandEvent started:
+                                _currentProcess = _currentProcess with { ProcessId = started.ProcessId };
+                                break;
+
+                            case ExitedCommandEvent exited:
+                                _currentProcess = _currentProcess with
+                                {
+                                    State = exited.ExitCode == 0 ? ProcessState.Completed : ProcessState.Failed,
+                                    EndTime = DateTime.UtcNow,
+                                    ExitCode = exited.ExitCode
+                                };
+                                return; // Exit after process completion
+                                
+                            // Note: StandardOutput and StandardError are handled by PipeTarget delegates
+                            // for better performance in PTY scenarios
+                        }
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    _currentProcess = _currentProcess with
+                    {
+                        State = ProcessState.Failed,
+                        EndTime = DateTime.UtcNow,
+                        ExitCode = -1
+                    };
+                }
+                catch (Exception ex)
+                {
+                    var errorLine = new OutputLine
+                    {
+                        Text = $"PTY Process Error: {ex.Message}\r\n",
+                        IsStdOut = false
+                    };
+                    _outputSubject.OnNext(errorLine);
+                    
+                    _currentProcess = _currentProcess with
+                    {
+                        State = ProcessState.Failed,
+                        EndTime = DateTime.UtcNow,
+                        ExitCode = -1
+                    };
+                }
+            }, _currentCancellationSource.Token);
+            
+            return processInfo;
+        }
+        finally
+        {
+            _executionSemaphore.Release();
+        }
+    }
+    
+    /// <inheritdoc />
+    public async Task ResizeTerminalAsync(int columns, int rows, CancellationToken cancellationToken = default)
+    {
+        if (_disposed)
+            throw new ObjectDisposedException(nameof(CliExecutor));
+            
+        if (!_isPtyProcess)
+        {
+            throw new InvalidOperationException("No PTY process is currently running to resize.");
+        }
+        
+        // Update the stored terminal size
+        _terminalSize = (columns, rows);
+        
+        // For now, we store the size and it will be used for new processes
+        // In a full PTY implementation, this would send a SIGWINCH signal
+        await Task.CompletedTask; // Keep async signature for consistency
+        
+        // Send a notification about the resize
+        var resizeNotification = new OutputLine
+        {
+            Text = $"\r\n[Terminal resized to {columns}x{rows}]\r\n",
+            IsStdOut = true
+        };
+        _outputSubject.OnNext(resizeNotification);
+    }
+    
+    /// <inheritdoc />
+    public async Task SendSignalAsync(ProcessSignal signal, CancellationToken cancellationToken = default)
+    {
+        if (_disposed)
+            throw new ObjectDisposedException(nameof(CliExecutor));
+            
+        if (_currentProcess?.State != ProcessState.Running)
+        {
+            throw new InvalidOperationException("No process is currently running to send signal to.");
+        }
+        
+        try
+        {
+            switch (signal)
+            {
+                case ProcessSignal.Interrupt:
+                    // Send Ctrl+C equivalent
+                    if (_isPtyProcess && _stdinWriter != null)
+                    {
+                        await _stdinWriter.WriteAsync("\u0003"); // ASCII 3 (Ctrl+C)
+                        await _stdinWriter.FlushAsync();
+                    }
+                    else if (_currentCancellationSource != null)
+                    {
+                        _currentCancellationSource.Cancel();
+                    }
+                    break;
+                    
+                case ProcessSignal.Quit:
+                    // Send Ctrl+\ equivalent
+                    if (_isPtyProcess && _stdinWriter != null)
+                    {
+                        await _stdinWriter.WriteAsync("\u001c"); // ASCII 28 (Ctrl+\)
+                        await _stdinWriter.FlushAsync();
+                    }
+                    else
+                    {
+                        _currentCancellationSource?.Cancel();
+                    }
+                    break;
+                    
+                case ProcessSignal.Stop:
+                    // Send Ctrl+Z equivalent
+                    if (_isPtyProcess && _stdinWriter != null)
+                    {
+                        await _stdinWriter.WriteAsync("\u001a"); // ASCII 26 (Ctrl+Z)
+                        await _stdinWriter.FlushAsync();
+                    }
+                    break;
+                    
+                case ProcessSignal.Terminate:
+                case ProcessSignal.Kill:
+                    await StopProcessInternalAsync(graceful: signal == ProcessSignal.Terminate, cancellationToken);
+                    break;
+                    
+                default:
+                    throw new NotSupportedException($"Signal {signal} is not supported.");
+            }
+        }
+        catch (Exception ex)
+        {
+            var errorLine = new OutputLine
+            {
+                Text = $"Error sending signal {signal}: {ex.Message}\r\n",
+                IsStdOut = false
+            };
+            _outputSubject.OnNext(errorLine);
+            throw;
+        }
+    }
+
+    /// <inheritdoc />
     public void Dispose()
     {
         if (_disposed)
@@ -397,6 +654,20 @@ public partial class CliExecutor : ICliExecutor
         try
         {
             StopProcessInternalAsync(graceful: false, CancellationToken.None).GetAwaiter().GetResult();
+        }
+        catch
+        {
+            // Ignore exceptions during disposal
+        }
+        
+        // Clean up PTY resources
+        try
+        {
+            if (_isPtyProcess)
+            {
+                _isPtyProcess = false;
+                _terminalSize = null;
+            }
         }
         catch
         {
