@@ -80,7 +80,7 @@ public partial class CliExecutor : ICliExecutor
                 .WithWorkingDirectory(workingDirectory)
                 .WithValidation(CommandResultValidation.None);
 
-            // Only set up interactive input if requested
+            // Set up input/output pipes using CliWrap's PipeTarget for better performance
             if (enableInteractiveInput)
             {
                 // Create anonymous pipe for stdin
@@ -90,6 +90,27 @@ public partial class CliExecutor : ICliExecutor
 
                 commandBuilder = commandBuilder.WithStandardInputPipe(PipeSource.FromStream(_stdinPipeClient));
             }
+
+            // Use PipeTarget.ToDelegate for more efficient real-time stream handling
+            commandBuilder = commandBuilder
+                .WithStandardOutputPipe(PipeTarget.ToDelegate(line =>
+                {
+                    var stdOutLine = new OutputLine
+                    {
+                        Text = ProcessAnsiCodes(line),
+                        IsStdOut = true
+                    };
+                    _outputSubject.OnNext(stdOutLine);
+                }))
+                .WithStandardErrorPipe(PipeTarget.ToDelegate(line =>
+                {
+                    var stdErrLine = new OutputLine
+                    {
+                        Text = ProcessAnsiCodes(line),
+                        IsStdOut = false
+                    };
+                    _outputSubject.OnNext(stdErrLine);
+                }));
 
             _currentCommand = commandBuilder;
 
@@ -105,7 +126,9 @@ public partial class CliExecutor : ICliExecutor
 
             _currentProcess = processInfo;
 
-            // Start the process in the background
+            // Start the process in the background with hybrid approach:
+            // - Use PipeTarget delegates for efficient stream handling
+            // - Use ListenAsync for process lifecycle events (Started, Exited)
             _ = Task.Run(async () =>
             {
                 try
@@ -118,24 +141,6 @@ public partial class CliExecutor : ICliExecutor
                                 _currentProcess = _currentProcess with { ProcessId = started.ProcessId };
                                 break;
 
-                            case StandardOutputCommandEvent stdOut:
-                                var stdOutLine = new OutputLine
-                                {
-                                    Text = ProcessAnsiCodes(stdOut.Text),
-                                    IsStdOut = true
-                                };
-                                _outputSubject.OnNext(stdOutLine);
-                                break;
-
-                            case StandardErrorCommandEvent stdErr:
-                                var stdErrLine = new OutputLine
-                                {
-                                    Text = ProcessAnsiCodes(stdErr.Text),
-                                    IsStdOut = false
-                                };
-                                _outputSubject.OnNext(stdErrLine);
-                                break;
-
                             case ExitedCommandEvent exited:
                                 var finalState = exited.ExitCode == 0 ? ProcessState.Completed : ProcessState.Failed;
                                 _currentProcess = _currentProcess with
@@ -144,7 +149,10 @@ public partial class CliExecutor : ICliExecutor
                                     EndTime = DateTime.UtcNow,
                                     ExitCode = exited.ExitCode
                                 };
-                                break;
+                                return; // Exit the loop after process completion
+                                
+                            // Note: StandardOutput and StandardError events are handled by PipeTarget delegates
+                            // This provides better performance than processing them here
                         }
                     }
                 }
@@ -440,6 +448,24 @@ public partial class CliExecutor : ICliExecutor
                 .WithWorkingDirectory(workingDirectory ?? Environment.CurrentDirectory)
                 .WithStandardInputPipe(PipeSource.FromStream(_stdinPipeClient))
                 .WithEnvironmentVariables(envVars)
+                .WithStandardOutputPipe(PipeTarget.ToDelegate(line =>
+                {
+                    var outputLine = new OutputLine
+                    {
+                        Text = line, // Preserve ANSI codes for PTY processes
+                        IsStdOut = true
+                    };
+                    _outputSubject.OnNext(outputLine);
+                }))
+                .WithStandardErrorPipe(PipeTarget.ToDelegate(line =>
+                {
+                    var errorLine = new OutputLine
+                    {
+                        Text = line, // Preserve ANSI codes for PTY processes
+                        IsStdOut = false
+                    };
+                    _outputSubject.OnNext(errorLine);
+                }))
                 .WithValidation(CommandResultValidation.None);
             
             _currentCommand = cmd;
@@ -456,7 +482,7 @@ public partial class CliExecutor : ICliExecutor
             
             _currentProcess = processInfo;
             
-            // Start the process in the background with PTY-like behavior
+            // Start the PTY process with hybrid approach for optimal performance
             _ = Task.Run(async () =>
             {
                 try
@@ -469,24 +495,6 @@ public partial class CliExecutor : ICliExecutor
                                 _currentProcess = _currentProcess with { ProcessId = started.ProcessId };
                                 break;
 
-                            case StandardOutputCommandEvent stdOut:
-                                var outputLine = new OutputLine
-                                {
-                                    Text = stdOut.Text,
-                                    IsStdOut = true
-                                };
-                                _outputSubject.OnNext(outputLine);
-                                break;
-
-                            case StandardErrorCommandEvent stdErr:
-                                var errorLine = new OutputLine
-                                {
-                                    Text = stdErr.Text,
-                                    IsStdOut = false
-                                };
-                                _outputSubject.OnNext(errorLine);
-                                break;
-
                             case ExitedCommandEvent exited:
                                 _currentProcess = _currentProcess with
                                 {
@@ -494,7 +502,10 @@ public partial class CliExecutor : ICliExecutor
                                     EndTime = DateTime.UtcNow,
                                     ExitCode = exited.ExitCode
                                 };
-                                return;
+                                return; // Exit after process completion
+                                
+                            // Note: StandardOutput and StandardError are handled by PipeTarget delegates
+                            // for better performance in PTY scenarios
                         }
                     }
                 }
