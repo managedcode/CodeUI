@@ -131,6 +131,9 @@
                                 try
                                 {
                                     await JSRuntime.InvokeVoidAsync("xtermTerminal.write", _terminalId, output.Text);
+                                    
+                                    // Check if process has ended and show prompt if needed
+                                    await CheckProcessStateAndShowPrompt();
                                 }
                                 catch (Exception ex)
                                 {
@@ -163,42 +166,80 @@
 
         try
         {
-            // Handle special keys
-            if (input == "\r") // Enter key
+            // Check if we have a running process - if so, send input directly to it
+            if (CliExecutor.CurrentProcess?.State == ProcessState.Running)
             {
-                await JSRuntime.InvokeVoidAsync("xtermTerminal.write", _terminalId, "\r\n");
-                
-                // Process the command
-                await ProcessCommand(_currentInput.Trim());
-                _currentInput = string.Empty;
-            }
-            else if (input == "\u007f") // Backspace
-            {
-                if (_currentInput.Length > 0)
-                {
-                    _currentInput = _currentInput.Substring(0, _currentInput.Length - 1);
-                    await JSRuntime.InvokeVoidAsync("xtermTerminal.write", _terminalId, "\b \b");
-                }
-            }
-            else if (input == "\u0003") // Ctrl+C
-            {
-                if (CliExecutor.CurrentProcess != null)
-                {
-                    await CliExecutor.StopProcessAsync(graceful: false);
-                    await JSRuntime.InvokeVoidAsync("xtermTerminal.write", _terminalId, "^C\r\n$ ");
-                    _currentInput = string.Empty;
-                }
+                // Interactive mode: send input directly to the running process
+                await HandleInteractiveInput(input);
             }
             else
             {
-                // Add character to current input and echo
-                _currentInput += input;
-                await JSRuntime.InvokeVoidAsync("xtermTerminal.write", _terminalId, input);
+                // Command mode: buffer input until Enter, then execute command
+                await HandleCommandInput(input);
             }
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Error handling terminal input: {ex.Message}");
+        }
+    }
+
+    private async Task HandleInteractiveInput(string input)
+    {
+        // Handle special keys in interactive mode
+        if (input == "\u0003") // Ctrl+C
+        {
+            await CliExecutor.StopProcessAsync(graceful: false);
+            await JSRuntime.InvokeVoidAsync("xtermTerminal.write", _terminalId, "^C\r\n$ ");
+            _currentInput = string.Empty;
+            return;
+        }
+
+        try
+        {
+            // Send input directly to the running process
+            await CliExecutor.SendInputAsync(input);
+            
+            // Echo the input to the terminal (the process output will also be displayed)
+            await JSRuntime.InvokeVoidAsync("xtermTerminal.write", _terminalId, input);
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("xtermTerminal.write", _terminalId, 
+                $"\r\nError sending input: {ex.Message}\r\n$ ");
+        }
+    }
+
+    private async Task HandleCommandInput(string input)
+    {
+        // Handle special keys in command mode
+        if (input == "\r") // Enter key
+        {
+            await JSRuntime.InvokeVoidAsync("xtermTerminal.write", _terminalId, "\r\n");
+            
+            // Process the command
+            await ProcessCommand(_currentInput.Trim());
+            _currentInput = string.Empty;
+        }
+        else if (input == "\u007f") // Backspace
+        {
+            if (_currentInput.Length > 0)
+            {
+                _currentInput = _currentInput.Substring(0, _currentInput.Length - 1);
+                await JSRuntime.InvokeVoidAsync("xtermTerminal.write", _terminalId, "\b \b");
+            }
+        }
+        else if (input == "\u0003") // Ctrl+C
+        {
+            // In command mode, Ctrl+C just cancels current input
+            await JSRuntime.InvokeVoidAsync("xtermTerminal.write", _terminalId, "^C\r\n$ ");
+            _currentInput = string.Empty;
+        }
+        else
+        {
+            // Add character to current input and echo
+            _currentInput += input;
+            await JSRuntime.InvokeVoidAsync("xtermTerminal.write", _terminalId, input);
         }
     }
 
@@ -235,25 +276,68 @@
             {
                 await JSRuntime.InvokeVoidAsync("xtermTerminal.write", _terminalId, 
                     "Available commands:\r\n" +
-                    "  help     - Show this help message\r\n" +
-                    "  clear    - Clear the terminal\r\n" +
-                    "  echo     - Echo back text\r\n" +
-                    "  pwd      - Show current directory (if available)\r\n" +
-                    "  ls       - List directory contents (if available)\r\n" +
+                    "  help        - Show this help message\r\n" +
+                    "  clear       - Clear the terminal\r\n" +
+                    "  echo        - Echo back text\r\n" +
+                    "  pwd         - Show current directory (if available)\r\n" +
+                    "  ls          - List directory contents (if available)\r\n" +
+                    "  claude-code - Start interactive Claude Code CLI\r\n" +
+                    "  bash        - Start interactive bash shell\r\n" +
                     "  Other commands will be executed via CLI executor\r\n$ ");
                 return;
             }
 
-            // Execute command via CLI executor
-            await CliExecutor.ExecuteAsync(cmd, args);
-            
-            // Add prompt after command completion
-            await JSRuntime.InvokeVoidAsync("xtermTerminal.write", _terminalId, "\r\n$ ");
+            // Determine if this is an interactive command
+            if (IsInteractiveCommand(cmd))
+            {
+                // Start interactive process using the new method
+                await CliExecutor.StartInteractiveProcessAsync(cmd, args);
+                // No prompt here - process is running
+            }
+            else
+            {
+                // Execute non-interactive command and wait for completion
+                await CliExecutor.ExecuteAsync(cmd, args);
+                
+                // Add prompt after command completion
+                await JSRuntime.InvokeVoidAsync("xtermTerminal.write", _terminalId, "\r\n$ ");
+            }
         }
         catch (Exception ex)
         {
             await JSRuntime.InvokeVoidAsync("xtermTerminal.write", _terminalId, 
                 $"Error: {ex.Message}\r\n$ ");
+        }
+    }
+
+    private static bool IsInteractiveCommand(string command)
+    {
+        // List of commands that are typically interactive
+        var interactiveCommands = new[]
+        {
+            "claude-code", "gemini", "codex", // AI CLI tools
+            "bash", "sh", "zsh", "fish", "cmd", "powershell", // Shells
+            "python", "node", "irb", "psql", "mysql", // REPLs
+            "vim", "nano", "emacs", // Editors
+            "top", "htop", "less", "more", // Interactive viewers
+            "ssh", "telnet", // Network tools
+        };
+
+        return interactiveCommands.Contains(command.ToLowerInvariant());
+    }
+
+    private async Task CheckProcessStateAndShowPrompt()
+    {
+        var currentProcess = CliExecutor.CurrentProcess;
+        
+        // If no process is running or process has completed/failed, show prompt
+        if (currentProcess == null || 
+            currentProcess.State == ProcessState.Completed || 
+            currentProcess.State == ProcessState.Failed)
+        {
+            // Only show prompt if we're not already showing it
+            // (we can track this with a flag if needed)
+            await JSRuntime.InvokeVoidAsync("xtermTerminal.write", _terminalId, "\r\n$ ");
         }
     }
 
