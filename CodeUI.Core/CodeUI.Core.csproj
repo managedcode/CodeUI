@@ -13,6 +13,7 @@
     <PackageReference Include="CliWrap" />
     <PackageReference Include="System.Reactive" />
     <PackageReference Include="Pty.Net" />
+    <PackageReference Include="LibGit2Sharp" />
   </ItemGroup>
 
 </Project>
