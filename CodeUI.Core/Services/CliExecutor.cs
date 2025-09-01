@@ -4,6 +4,7 @@ using System.Text.RegularExpressions;
 using CliWrap;
 using CliWrap.EventStream;
 using CodeUI.Core.Models;
+using System.IO.Pipes;
 
 namespace CodeUI.Core.Services;
 
@@ -17,6 +18,8 @@ public partial class CliExecutor : ICliExecutor
     private Command? _currentCommand;
     private CancellationTokenSource? _currentCancellationSource;
     private volatile ProcessInfo? _currentProcess;
+    private AnonymousPipeServerStream? _stdinPipeServer;
+    private StreamWriter? _stdinWriter;
     private bool _disposed;
 
     /// <summary>
@@ -33,6 +36,19 @@ public partial class CliExecutor : ICliExecutor
 
     /// <inheritdoc />
     public async Task<ProcessInfo> StartProcessAsync(string command, string arguments, string? workingDirectory = null, CancellationToken cancellationToken = default)
+    {
+        return await StartProcessInternalAsync(command, arguments, workingDirectory, enableInteractiveInput: false, cancellationToken);
+    }
+
+    /// <summary>
+    /// Starts an interactive CLI process that can receive stdin input.
+    /// </summary>
+    public async Task<ProcessInfo> StartInteractiveProcessAsync(string command, string arguments, string? workingDirectory = null, CancellationToken cancellationToken = default)
+    {
+        return await StartProcessInternalAsync(command, arguments, workingDirectory, enableInteractiveInput: true, cancellationToken);
+    }
+
+    private async Task<ProcessInfo> StartProcessInternalAsync(string command, string arguments, string? workingDirectory, bool enableInteractiveInput, CancellationToken cancellationToken = default)
     {
         if (_disposed)
             throw new ObjectDisposedException(nameof(CliExecutor));
@@ -53,10 +69,23 @@ public partial class CliExecutor : ICliExecutor
 
             workingDirectory ??= Directory.GetCurrentDirectory();
 
-            _currentCommand = Cli.Wrap(command)
+            var commandBuilder = Cli.Wrap(command)
                 .WithArguments(arguments)
                 .WithWorkingDirectory(workingDirectory)
                 .WithValidation(CommandResultValidation.None);
+
+            // Only set up interactive input if requested
+            if (enableInteractiveInput)
+            {
+                // Create anonymous pipe for stdin
+                _stdinPipeServer = new AnonymousPipeServerStream(PipeDirection.Out, HandleInheritability.Inheritable);
+                var stdinPipeClient = new AnonymousPipeClientStream(PipeDirection.In, _stdinPipeServer.GetClientHandleAsString());
+                _stdinWriter = new StreamWriter(_stdinPipeServer) { AutoFlush = true };
+
+                commandBuilder = commandBuilder.WithStandardInputPipe(PipeSource.FromStream(stdinPipeClient));
+            }
+
+            _currentCommand = commandBuilder;
 
             var processInfo = new ProcessInfo
             {
@@ -192,11 +221,26 @@ public partial class CliExecutor : ICliExecutor
             throw new InvalidOperationException("No process is currently running to send input to.");
         }
 
-        // Note: CliWrap doesn't support sending input to a running process directly.
-        // This would require a different approach using Process class directly or
-        // preparing input before starting the command.
-        await Task.CompletedTask;
-        throw new NotSupportedException("Sending input to a running process is not currently supported. Consider using ExecuteAsync with pre-prepared input.");
+        if (_stdinWriter == null)
+        {
+            throw new InvalidOperationException("Stdin stream is not available for the current process.");
+        }
+
+        try
+        {
+            await _stdinWriter.WriteAsync(input);
+            await _stdinWriter.FlushAsync();
+        }
+        catch (Exception ex)
+        {
+            var errorLine = new OutputLine
+            {
+                Text = $"Error sending input to process: {ex.Message}\r\n",
+                IsStdOut = false
+            };
+            _outputSubject.OnNext(errorLine);
+            throw;
+        }
     }
 
     /// <inheritdoc />
@@ -289,6 +333,33 @@ public partial class CliExecutor : ICliExecutor
             }
         }
         
+        // Close stdin to signal process termination
+        if (_stdinWriter != null)
+        {
+            try
+            {
+                await _stdinWriter.DisposeAsync();
+                _stdinWriter = null;
+            }
+            catch
+            {
+                // Ignore errors during cleanup
+            }
+        }
+        
+        if (_stdinPipeServer != null)
+        {
+            try
+            {
+                _stdinPipeServer.Dispose();
+                _stdinPipeServer = null;
+            }
+            catch
+            {
+                // Ignore errors during cleanup
+            }
+        }
+        
         if (_currentProcess?.State == ProcessState.Running)
         {
             _currentProcess = _currentProcess with
@@ -318,6 +389,8 @@ public partial class CliExecutor : ICliExecutor
             // Ignore exceptions during disposal
         }
         
+        _stdinWriter?.Dispose();
+        _stdinPipeServer?.Dispose();
         _currentCancellationSource?.Dispose();
         _outputSubject.Dispose();
         _executionSemaphore.Dispose();

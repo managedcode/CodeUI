@@ -29,6 +29,16 @@ public interface ICliExecutor : IDisposable
     Task<ProcessInfo> StartProcessAsync(string command, string arguments, string? workingDirectory = null, CancellationToken cancellationToken = default);
     
     /// <summary>
+    /// Starts an interactive CLI process that can receive stdin input.
+    /// </summary>
+    /// <param name="command">The command to execute (e.g., "claude-code", "bash").</param>
+    /// <param name="arguments">The arguments to pass to the command.</param>
+    /// <param name="workingDirectory">The working directory for the process. Defaults to current directory.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>A task that completes when the process starts, containing the process information.</returns>
+    Task<ProcessInfo> StartInteractiveProcessAsync(string command, string arguments, string? workingDirectory = null, CancellationToken cancellationToken = default);
+    
+    /// <summary>
     /// Starts a CLI process and waits for it to complete.
     /// </summary>
     /// <param name="command">The command to execute.</param>
