@@ -4,16 +4,26 @@ using System.Text.RegularExpressions;
 namespace CodeUI.Core.Services;
 
 /// <summary>
-/// Implementation of file system service for exploring and managing files and directories
+/// Implementation of file system service for exploring and managing files and directories with sandboxed access
 /// </summary>
-public class FileSystemService : IFileSystemService
+public class FileSystemService : IFileSystemService, IDisposable
 {
     private string _workingDirectory;
     private readonly string[] _hiddenDirectories = { ".git", ".vs", ".vscode", "bin", "obj", "node_modules", ".next" };
+    private readonly ISandboxedFileSystemProvider _sandboxedProvider;
+    private bool _disposed = false;
     
-    public FileSystemService()
+    public FileSystemService() : this(new SandboxedFileSystemProvider())
     {
+    }
+    
+    public FileSystemService(ISandboxedFileSystemProvider sandboxedProvider)
+    {
+        _sandboxedProvider = sandboxedProvider ?? throw new ArgumentNullException(nameof(sandboxedProvider));
         _workingDirectory = Directory.GetCurrentDirectory();
+        
+        // Initialize with current working directory as the allowed workspace
+        _sandboxedProvider.SetAllowedWorkspaces(new[] { _workingDirectory });
     }
     
     public async Task<IEnumerable<FileSystemItem>> GetRootDirectoriesAsync()
@@ -40,59 +50,20 @@ public class FileSystemService : IFileSystemService
     
     public async Task<IEnumerable<FileSystemItem>> GetDirectoryContentsAsync(string directoryPath)
     {
-        var items = new List<FileSystemItem>();
-        
         try
         {
-            if (!Directory.Exists(directoryPath))
-                return items;
-                
-            var directoryInfo = new DirectoryInfo(directoryPath);
-            
-            // Get subdirectories
-            var subdirectories = directoryInfo.GetDirectories()
-                .Where(d => !_hiddenDirectories.Contains(d.Name) && !d.Attributes.HasFlag(FileAttributes.Hidden))
-                .OrderBy(d => d.Name);
-                
-            foreach (var dir in subdirectories)
-            {
-                try
-                {
-                    var item = await CreateFileSystemItemAsync(dir);
-                    items.Add(item);
-                }
-                catch
-                {
-                    // Skip directories we can't access
-                    continue;
-                }
-            }
-            
-            // Get files
-            var files = directoryInfo.GetFiles()
-                .Where(f => !f.Attributes.HasFlag(FileAttributes.Hidden))
-                .OrderBy(f => f.Name);
-                
-            foreach (var file in files)
-            {
-                try
-                {
-                    var item = await CreateFileSystemItemAsync(file);
-                    items.Add(item);
-                }
-                catch
-                {
-                    // Skip files we can't access
-                    continue;
-                }
-            }
+            return await _sandboxedProvider.GetSecureDirectoryContentsAsync(directoryPath);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Return empty list for unauthorized access instead of throwing
+            return new List<FileSystemItem>();
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Error reading directory {directoryPath}: {ex.Message}");
+            return new List<FileSystemItem>();
         }
-        
-        return items;
     }
     
     public async Task<IEnumerable<FileSystemItem>> SearchAsync(string searchPattern, string? basePath = null)
@@ -122,7 +93,8 @@ public class FileSystemService : IFileSystemService
                     var matchingFiles = Directory.EnumerateFiles(searchPath, pattern, searchOptions)
                         .Take(100) // Limit results for performance
                         .Select(f => new FileInfo(f))
-                        .Where(f => !f.Attributes.HasFlag(FileAttributes.Hidden));
+                        .Where(f => !f.Attributes.HasFlag(FileAttributes.Hidden))
+                        .Where(f => _sandboxedProvider.IsPathAllowed(f.FullName)); // Only include allowed files
                         
                     foreach (var file in matchingFiles)
                     {
@@ -144,7 +116,8 @@ public class FileSystemService : IFileSystemService
                     var matchingDirs = Directory.EnumerateDirectories(searchPath, pattern, searchOptions)
                         .Take(50) // Limit results for performance
                         .Select(d => new DirectoryInfo(d))
-                        .Where(d => !_hiddenDirectories.Contains(d.Name) && !d.Attributes.HasFlag(FileAttributes.Hidden));
+                        .Where(d => !_hiddenDirectories.Contains(d.Name) && !d.Attributes.HasFlag(FileAttributes.Hidden))
+                        .Where(d => _sandboxedProvider.IsPathAllowed(d.FullName)); // Only include allowed directories
                         
                     foreach (var dir in matchingDirs)
                     {
@@ -172,83 +145,27 @@ public class FileSystemService : IFileSystemService
     
     public async Task<FileSystemItem> CreateFileAsync(string directoryPath, string fileName)
     {
-        await Task.Yield();
-        
-        if (!Directory.Exists(directoryPath))
-            throw new DirectoryNotFoundException($"Directory not found: {directoryPath}");
-            
-        var filePath = Path.Combine(directoryPath, fileName);
-        
-        if (File.Exists(filePath))
-            throw new InvalidOperationException($"File already exists: {fileName}");
-            
-        await File.WriteAllTextAsync(filePath, string.Empty);
-        
-        var fileInfo = new FileInfo(filePath);
-        return await CreateFileSystemItemAsync(fileInfo);
+        return await _sandboxedProvider.CreateSecureFileAsync(directoryPath, fileName);
     }
     
     public async Task<FileSystemItem> CreateDirectoryAsync(string parentPath, string directoryName)
     {
-        await Task.Yield();
-        
-        if (!Directory.Exists(parentPath))
-            throw new DirectoryNotFoundException($"Parent directory not found: {parentPath}");
-            
-        var directoryPath = Path.Combine(parentPath, directoryName);
-        
-        if (Directory.Exists(directoryPath))
-            throw new InvalidOperationException($"Directory already exists: {directoryName}");
-            
-        var directoryInfo = Directory.CreateDirectory(directoryPath);
-        return await CreateFileSystemItemAsync(directoryInfo);
+        return await _sandboxedProvider.CreateSecureDirectoryAsync(parentPath, directoryName);
     }
     
     public async Task<FileSystemItem> RenameAsync(string currentPath, string newName)
     {
-        await Task.Yield();
-        
-        if (!File.Exists(currentPath) && !Directory.Exists(currentPath))
-            throw new FileNotFoundException($"Path not found: {currentPath}");
-            
-        var directory = Path.GetDirectoryName(currentPath) ?? throw new InvalidOperationException("Invalid path");
-        var newPath = Path.Combine(directory, newName);
-        
-        if (File.Exists(newPath) || Directory.Exists(newPath))
-            throw new InvalidOperationException($"Target already exists: {newName}");
-            
-        if (File.Exists(currentPath))
-        {
-            File.Move(currentPath, newPath);
-            var fileInfo = new FileInfo(newPath);
-            return await CreateFileSystemItemAsync(fileInfo);
-        }
-        else
-        {
-            Directory.Move(currentPath, newPath);
-            var directoryInfo = new DirectoryInfo(newPath);
-            return await CreateFileSystemItemAsync(directoryInfo);
-        }
+        return await _sandboxedProvider.RenameSecureAsync(currentPath, newName);
     }
     
     public async Task<bool> DeleteAsync(string path)
     {
-        await Task.Yield();
-        
         try
         {
-            if (File.Exists(path))
-            {
-                File.Delete(path);
-                return true;
-            }
-            
-            if (Directory.Exists(path))
-            {
-                Directory.Delete(path, recursive: true);
-                return true;
-            }
-            
+            return await _sandboxedProvider.DeleteSecureAsync(path);
+        }
+        catch (UnauthorizedAccessException)
+        {
             return false;
         }
         catch
@@ -263,15 +180,21 @@ public class FileSystemService : IFileSystemService
         
         try
         {
-            if (File.Exists(path))
+            // Use sandboxed provider to check if path is allowed
+            if (!_sandboxedProvider.IsPathAllowed(path))
+                return null;
+                
+            var resolvedPath = _sandboxedProvider.ResolveSymbolicLink(path);
+            
+            if (File.Exists(resolvedPath))
             {
-                var fileInfo = new FileInfo(path);
+                var fileInfo = new FileInfo(resolvedPath);
                 return await CreateFileSystemItemAsync(fileInfo);
             }
             
-            if (Directory.Exists(path))
+            if (Directory.Exists(resolvedPath))
             {
-                var directoryInfo = new DirectoryInfo(path);
+                var directoryInfo = new DirectoryInfo(resolvedPath);
                 return await CreateFileSystemItemAsync(directoryInfo);
             }
             
@@ -286,7 +209,19 @@ public class FileSystemService : IFileSystemService
     public async Task<bool> ExistsAsync(string path)
     {
         await Task.Yield();
-        return File.Exists(path) || Directory.Exists(path);
+        
+        try
+        {
+            if (!_sandboxedProvider.IsPathAllowed(path))
+                return false;
+                
+            var resolvedPath = _sandboxedProvider.ResolveSymbolicLink(path);
+            return File.Exists(resolvedPath) || Directory.Exists(resolvedPath);
+        }
+        catch
+        {
+            return false;
+        }
     }
     
     public string GetWorkingDirectory()
@@ -300,8 +235,12 @@ public class FileSystemService : IFileSystemService
         
         if (!Directory.Exists(path))
             throw new DirectoryNotFoundException($"Directory not found: {path}");
-            
-        _workingDirectory = Path.GetFullPath(path);
+        
+        var normalizedPath = _sandboxedProvider.NormalizePath(path);
+        
+        // Update working directory and allowed workspaces
+        _workingDirectory = normalizedPath;
+        _sandboxedProvider.SetAllowedWorkspaces(new[] { _workingDirectory });
     }
     
     private async Task<FileSystemItem> CreateFileSystemItemAsync(FileSystemInfo info)
@@ -329,5 +268,14 @@ public class FileSystemService : IFileSystemService
             IsReadOnly = info.Attributes.HasFlag(FileAttributes.ReadOnly),
             IsLoaded = false
         };
+    }
+    
+    public void Dispose()
+    {
+        if (!_disposed)
+        {
+            _sandboxedProvider?.Dispose();
+            _disposed = true;
+        }
     }
 }

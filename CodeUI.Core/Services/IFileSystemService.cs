@@ -5,7 +5,7 @@ namespace CodeUI.Core.Services;
 /// <summary>
 /// Service for file system operations and file exploration
 /// </summary>
-public interface IFileSystemService
+public interface IFileSystemService : IDisposable
 {
     /// <summary>
     /// Gets the root directories available for exploration
