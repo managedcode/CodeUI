@@ -63,12 +63,35 @@ public class SandboxedFileSystemProvider : ISandboxedFileSystemProvider, IDispos
 
         try
         {
+            // Normalize path separators - convert backslashes to forward slashes on non-Windows systems
+            var normalizedPath = path;
+            if (!OperatingSystem.IsWindows())
+            {
+                normalizedPath = normalizedPath.Replace('\\', '/');
+            }
+            
+            // Check for path traversal attempts before normalization
+            if (normalizedPath.Contains(".."))
+            {
+                throw new SecurityException($"Path traversal detected in path: {path}");
+            }
+            
             // Get full path to resolve any relative components
-            var fullPath = Path.GetFullPath(path);
+            var fullPath = Path.GetFullPath(normalizedPath);
+            
+            // Additional safety check after normalization
+            if (fullPath.Contains(".."))
+            {
+                throw new SecurityException($"Path traversal detected in normalized path: {fullPath}");
+            }
             
             return fullPath;
         }
-        catch (Exception ex) when (!(ex is SecurityException))
+        catch (SecurityException)
+        {
+            throw; // Re-throw security exceptions
+        }
+        catch (Exception ex)
         {
             throw new ArgumentException($"Invalid path: {path}", nameof(path), ex);
         }
