@@ -1,0 +1,314 @@
+@using CodeUI.Core.Services
+@using CodeUI.Core.Models
+@inject IFileSystemService FileSystemService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<MudContainer MaxWidth="MaxWidth.False" Class="pa-4">
+    <MudGrid>
+        <!-- Header with Search -->
+        <MudItem xs="12">
+            <MudPaper Class="pa-4 mb-4">
+                <MudGrid AlignItems="Align.Center">
+                    <MudItem xs="12" md="6">
+                        <MudText Typo="Typo.h5">File Explorer</MudText>
+                        <MudText Typo="Typo.body2" Class="text-muted">
+                            Current Directory: @_currentDirectory
+                        </MudText>
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="_searchPattern"
+                                    Label="Search files and folders"
+                                    Variant="Variant.Outlined"
+                                    Adornment="Adornment.End"
+                                    AdornmentIcon="Icons.Material.Filled.Search"
+                                    OnAdornmentClick="SearchAsync"
+                                    OnKeyUp="OnSearchKeyUp"
+                                    Clearable="true"
+                                    OnClearButtonClick="ClearSearchAsync" />
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
+        </MudItem>
+
+        <!-- File Tree -->
+        <MudItem xs="12" md="8">
+            <MudPaper Class="pa-4" MinHeight="600px">
+                @if (_isLoading)
+                {
+                    <MudProgressCircular Indeterminate="true" />
+                    <MudText>Loading file system...</MudText>
+                }
+                else if (_isSearchMode && _searchResults.Any())
+                {
+                    <MudText Typo="Typo.h6" Class="mb-3">Search Results (@_searchResults.Count())</MudText>
+                    <MudList T="string">
+                        @foreach (var item in _searchResults)
+                        {
+                            <MudListItem T="string" Icon="@item.IconClass" IconColor="Color.Primary">
+                                <div class="d-flex justify-space-between align-center">
+                                    <div>
+                                        <MudText>@item.Name</MudText>
+                                        <MudText Typo="Typo.caption" Class="text-muted">@item.RelativePath</MudText>
+                                    </div>
+                                    <div class="text-right">
+                                        @if (!item.IsDirectory)
+                                        {
+                                            <MudText Typo="Typo.caption">@item.FormattedSize</MudText>
+                                        }
+                                        <MudText Typo="Typo.caption">@item.RelativeModifiedTime</MudText>
+                                    </div>
+                                </div>
+                            </MudListItem>
+                        }
+                    </MudList>
+                }
+                else if (_isSearchMode && !_searchResults.Any())
+                {
+                    <MudText Typo="Typo.body1" Class="text-center pa-8">
+                        No files or folders found matching "@_searchPattern"
+                    </MudText>
+                }
+                else
+                {
+                    @foreach (var item in _treeItems)
+                    {
+                        @RenderFileSystemItem(item, 0)
+                    }
+                }
+            </MudPaper>
+        </MudItem>
+
+        <!-- File Details Panel -->
+        <MudItem xs="12" md="4">
+            <MudPaper Class="pa-4" MinHeight="600px">
+                @if (_selectedItem != null)
+                {
+                    <MudText Typo="Typo.h6" Class="mb-3">Details</MudText>
+                    
+                    <MudText Typo="Typo.subtitle2">Name:</MudText>
+                    <MudText Class="mb-2">@_selectedItem.Name</MudText>
+                    
+                    <MudText Typo="Typo.subtitle2">Type:</MudText>
+                    <MudText Class="mb-2">@(_selectedItem.IsDirectory ? "Folder" : "File")</MudText>
+                    
+                    @if (!_selectedItem.IsDirectory)
+                    {
+                        <MudText Typo="Typo.subtitle2">Size:</MudText>
+                        <MudText Class="mb-2">@_selectedItem.FormattedSize</MudText>
+                        
+                        <MudText Typo="Typo.subtitle2">Extension:</MudText>
+                        <MudText Class="mb-2">@(_selectedItem.Extension ?? "None")</MudText>
+                    }
+                    
+                    <MudText Typo="Typo.subtitle2">Path:</MudText>
+                    <MudText Class="mb-2" Style="word-break: break-all;">@_selectedItem.RelativePath</MudText>
+                    
+                    <MudText Typo="Typo.subtitle2">Last Modified:</MudText>
+                    <MudText Class="mb-2">@_selectedItem.LastModified.ToString("yyyy-MM-dd HH:mm:ss")</MudText>
+                    
+                    <MudText Typo="Typo.subtitle2">Created:</MudText>
+                    <MudText Class="mb-2">@_selectedItem.Created.ToString("yyyy-MM-dd HH:mm:ss")</MudText>
+                    
+                    @if (_selectedItem.IsReadOnly)
+                    {
+                        <MudChip T="string" Color="Color.Warning" Size="Size.Small">Read Only</MudChip>
+                    }
+                    @if (_selectedItem.IsHidden)
+                    {
+                        <MudChip T="string" Color="Color.Secondary" Size="Size.Small">Hidden</MudChip>
+                    }
+                }
+                else
+                {
+                    <MudText Typo="Typo.body1" Class="text-center pa-8">
+                        Select a file or folder to view details
+                    </MudText>
+                }
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+</MudContainer>
+
+@code {
+    private HashSet<FileSystemItem> _treeItems = new();
+    private FileSystemItem? _selectedItem;
+    private bool _isLoading = true;
+    private bool _isSearchMode = false;
+    private string _searchPattern = string.Empty;
+    private List<FileSystemItem> _searchResults = new();
+    private string _currentDirectory = string.Empty;
+
+    private RenderFragment RenderFileSystemItem(FileSystemItem item, int level) => __builder =>
+    {
+        var paddingLeft = $"{level * 20}px";
+        
+        <div style="padding-left: @paddingLeft; display: flex; align-items: center; padding: 4px; cursor: pointer;"
+             @onclick="() => OnItemClicked(item)"
+             class="@(item == _selectedItem ? "mud-selected" : "")">
+            
+            @if (item.IsDirectory)
+            {
+                <MudIconButton Icon="@(item.IsExpanded ? Icons.Material.Filled.ExpandMore : Icons.Material.Filled.ChevronRight)"
+                             Size="Size.Small"
+                             OnClick="() => ToggleExpansion(item)" />
+            }
+            else
+            {
+                <div style="width: 24px;"></div>
+            }
+            
+            <MudIcon Icon="@item.IconClass" Size="Size.Small" Class="mr-2" />
+            <MudText Style="flex: 1;">@item.Name</MudText>
+            <MudText Typo="Typo.caption" Class="text-muted">@GetItemEndText(item)</MudText>
+        </div>
+        
+        @if (item.IsDirectory && item.IsExpanded && item.Children.Any())
+        {
+            @foreach (var child in item.Children.OrderBy(c => c.IsDirectory ? 0 : 1).ThenBy(c => c.Name))
+            {
+                @RenderFileSystemItem(child, level + 1)
+            }
+        }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadFileSystemAsync();
+    }
+
+    private async Task LoadFileSystemAsync()
+    {
+        try
+        {
+            _isLoading = true;
+            _currentDirectory = FileSystemService.GetWorkingDirectory();
+            
+            var rootDirectories = await FileSystemService.GetRootDirectoriesAsync();
+            _treeItems = rootDirectories.ToHashSet();
+            
+            // Auto-expand the first directory and load its contents
+            foreach (var item in _treeItems.Where(x => x.IsDirectory))
+            {
+                await LoadDirectoryContentsAsync(item);
+                item.IsExpanded = true;
+                break; // Only expand the first one
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading file system: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task LoadDirectoryContentsAsync(FileSystemItem directory)
+    {
+        if (directory.IsLoaded || !directory.IsDirectory)
+            return;
+
+        try
+        {
+            var contents = await FileSystemService.GetDirectoryContentsAsync(directory.FullPath);
+            directory.Children = contents.ToList();
+            directory.IsLoaded = true;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading directory contents: {ex.Message}", Severity.Warning);
+        }
+    }
+
+    private async Task OnItemClicked(FileSystemItem item)
+    {
+        _selectedItem = item;
+        
+        if (item.IsDirectory && !item.IsLoaded)
+        {
+            await LoadDirectoryContentsAsync(item);
+        }
+    }
+
+    private async Task ToggleExpansion(FileSystemItem item)
+    {
+        if (!item.IsDirectory) return;
+        
+        item.IsExpanded = !item.IsExpanded;
+        
+        if (item.IsExpanded && !item.IsLoaded)
+        {
+            await LoadDirectoryContentsAsync(item);
+        }
+    }
+
+    private async Task SearchAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_searchPattern))
+        {
+            await ClearSearchAsync();
+            return;
+        }
+
+        try
+        {
+            _isLoading = true;
+            _isSearchMode = true;
+            _searchResults = (await FileSystemService.SearchAsync(_searchPattern)).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error searching: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task ClearSearchAsync()
+    {
+        _searchPattern = string.Empty;
+        _isSearchMode = false;
+        _searchResults.Clear();
+        await Task.CompletedTask;
+    }
+
+    private async Task OnSearchKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await SearchAsync();
+        }
+        else if (e.Key == "Escape")
+        {
+            await ClearSearchAsync();
+        }
+    }
+
+    private async Task<string?> PromptForName(string title, string prompt, string defaultValue)
+    {
+        // For now, use a simple approach - in a real implementation, 
+        // you'd use a proper MudBlazor dialog
+        await Task.CompletedTask;
+        return defaultValue; // Temporary implementation
+    }
+
+    private async Task<bool> ShowConfirmationDialog(string title, string message)
+    {
+        // For now, use a simple approach - in a real implementation,
+        // you'd use a proper MudBlazor confirmation dialog
+        await Task.CompletedTask;
+        return false; // Temporary implementation - always cancel for safety
+    }
+
+    private string GetItemEndText(FileSystemItem item)
+    {
+        if (item.IsDirectory)
+            return item.RelativeModifiedTime;
+        
+        return $"{item.FormattedSize} • {item.RelativeModifiedTime}";
+    }
+}

@@ -3,6 +3,7 @@ using CodeUI.Core.Data;
 using CodeUI.Core.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using MudBlazor.Services;
 
 namespace CodeUI.Web;
 
@@ -15,6 +16,9 @@ public class Program
         // Add services to the container.
         builder.Services.AddRazorComponents()
             .AddInteractiveServerComponents();
+
+        // Add MudBlazor services
+        builder.Services.AddMudServices();
 
         // Configure SQLite database
         builder.Services.AddDbContext<ApplicationDbContext>(options =>
@@ -40,6 +44,9 @@ public class Program
 
         // Register CLI execution services
         builder.Services.AddScoped<ICliExecutor, CliExecutor>();
+        
+        // Register file system services
+        builder.Services.AddScoped<IFileSystemService, FileSystemService>();
 
         var app = builder.Build();
 
