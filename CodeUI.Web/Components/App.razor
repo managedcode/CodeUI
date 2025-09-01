@@ -9,6 +9,10 @@
     <link rel="stylesheet" href="app.css" />
     <link rel="stylesheet" href="CodeUI.Web.styles.css" />
     <link rel="icon" type="image/png" href="favicon.png" />
+    
+    <!-- XTerm.js CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
+    
     <HeadOutlet />
 </head>
 
@@ -17,6 +21,13 @@
         <Routes />
     </CascadingAuthenticationState>
     <script src="_framework/blazor.web.js"></script>
+    
+    <!-- XTerm.js JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+    
+    <!-- Terminal Integration -->
+    <script src="js/terminal.js"></script>
 </body>
 
 </html>

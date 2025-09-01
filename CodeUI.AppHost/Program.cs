@@ -15,7 +15,7 @@ public class Program
         
         // Navigate up to find the solution root
         var solutionDir = currentDir;
-        while (solutionDir != null && !File.Exists(Path.Combine(solutionDir, "CodeUI.sln")))
+        while (solutionDir != null && !File.Exists(Path.Combine(solutionDir, "CodeUI.slnx")))
         {
             solutionDir = Directory.GetParent(solutionDir)?.FullName;
         }

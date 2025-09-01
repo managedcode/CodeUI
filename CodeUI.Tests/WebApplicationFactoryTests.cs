@@ -1,13 +1,12 @@
-using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CodeUI.Tests;
 
-public class WebApplicationFactoryTests : IClassFixture<WebApplicationFactory<CodeUI.Web.Program>>
+public class WebApplicationFactoryTests : IClassFixture<TestWebApplicationFactory<CodeUI.Web.Program>>
 {
-    private readonly WebApplicationFactory<CodeUI.Web.Program> _factory;
+    private readonly TestWebApplicationFactory<CodeUI.Web.Program> _factory;
 
-    public WebApplicationFactoryTests(WebApplicationFactory<CodeUI.Web.Program> factory)
+    public WebApplicationFactoryTests(TestWebApplicationFactory<CodeUI.Web.Program> factory)
     {
         _factory = factory;
     }
