@@ -1,5 +1,6 @@
 @page "/terminal"
 @using System.Reactive.Linq
+@using System.Text.Json
 @using CodeUI.Core.Services
 @using CodeUI.Core.Models
 @implements IAsyncDisposable
@@ -189,8 +190,18 @@
         // Handle special keys in interactive mode
         if (input == "\u0003") // Ctrl+C
         {
-            await CliExecutor.StopProcessAsync(graceful: false);
-            await JSRuntime.InvokeVoidAsync("xtermTerminal.write", _terminalId, "^C\r\n$ ");
+            try
+            {
+                // Use new signal API for better PTY support
+                await CliExecutor.SendSignalAsync(ProcessSignal.Interrupt);
+                await JSRuntime.InvokeVoidAsync("xtermTerminal.write", _terminalId, "^C\r\n$ ");
+            }
+            catch (InvalidOperationException)
+            {
+                // No process running, fallback to old behavior
+                await CliExecutor.StopProcessAsync(graceful: false);
+                await JSRuntime.InvokeVoidAsync("xtermTerminal.write", _terminalId, "^C\r\n$ ");
+            }
             _currentInput = string.Empty;
             return;
         }
@@ -290,8 +301,20 @@
             // Determine if this is an interactive command
             if (IsInteractiveCommand(cmd))
             {
-                // Start interactive process using the new method
-                await CliExecutor.StartInteractiveProcessAsync(cmd, args);
+                // Check if this command benefits from PTY support
+                if (IsPtyPreferredCommand(cmd))
+                {
+                    // Get current terminal size from JavaScript
+                    var terminalSize = await GetTerminalSizeAsync();
+                    
+                    // Start PTY process with terminal size
+                    await CliExecutor.StartPtyProcessAsync(cmd, args, terminalSize: terminalSize);
+                }
+                else
+                {
+                    // Start interactive process using the regular method
+                    await CliExecutor.StartInteractiveProcessAsync(cmd, args);
+                }
                 // No prompt here - process is running
             }
             else
@@ -326,6 +349,43 @@
         return interactiveCommands.Contains(command.ToLowerInvariant());
     }
 
+    private static bool IsPtyPreferredCommand(string command)
+    {
+        // Commands that particularly benefit from PTY support (full terminal emulation)
+        var ptyPreferredCommands = new[]
+        {
+            "bash", "sh", "zsh", "fish", "cmd", "powershell", // Shells
+            "vim", "nano", "emacs", // Full-screen editors
+            "top", "htop", "less", "more", // Interactive viewers with complex output
+            "ssh", "telnet", // Network tools that need proper terminal handling
+            "python", "node", "irb", // REPLs that benefit from proper signal handling
+            "mysql", "psql", // Database shells
+        };
+
+        return ptyPreferredCommands.Contains(command.ToLowerInvariant());
+    }
+
+    private async Task<(int Columns, int Rows)?> GetTerminalSizeAsync()
+    {
+        try
+        {
+            var sizeResult = await JSRuntime.InvokeAsync<object>("xtermTerminal.getSize", _terminalId);
+            if (sizeResult is JsonElement jsonElement && jsonElement.ValueKind == JsonValueKind.Object)
+            {
+                var cols = jsonElement.GetProperty("cols").GetInt32();
+                var rows = jsonElement.GetProperty("rows").GetInt32();
+                return (cols, rows);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error getting terminal size: {ex.Message}");
+        }
+        
+        // Return default size if unable to get current size
+        return (80, 24);
+    }
+
     private async Task CheckProcessStateAndShowPrompt()
     {
         var currentProcess = CliExecutor.CurrentProcess;
@@ -342,13 +402,25 @@
     }
 
     [JSInvokable]
-    public void OnTerminalResize(int cols, int rows)
+    public async void OnTerminalResize(int cols, int rows)
     {
         if (_isDisposed)
             return;
 
-        // Handle terminal resize if needed
-        Console.WriteLine($"Terminal resized to {cols}x{rows}");
+        try
+        {
+            // Handle terminal resize for PTY processes
+            if (CliExecutor.CurrentProcess?.State == ProcessState.Running)
+            {
+                await CliExecutor.ResizeTerminalAsync(cols, rows);
+            }
+            
+            Console.WriteLine($"Terminal resized to {cols}x{rows}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error handling terminal resize: {ex.Message}");
+        }
     }
 
     private async Task ClearTerminal()
