@@ -17,6 +17,7 @@
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
   </ItemGroup>
 
   <ItemGroup>
@@ -26,6 +27,7 @@
   <ItemGroup>
     <ProjectReference Include="..\CodeUI.AppHost\CodeUI.AppHost.csproj" />
     <ProjectReference Include="..\CodeUI.Web\CodeUI.Web.csproj" />
+    <ProjectReference Include="..\CodeUI.Tests\CodeUI.Tests.csproj" />
   </ItemGroup>
 
 </Project>

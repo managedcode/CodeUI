@@ -1,16 +1,15 @@
 using System.Net;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 // TODO: Consider migrating to Aspire.Hosting.Testing for distributed application testing
 // Example: using Aspire.Hosting.Testing;
 
 namespace CodeUI.AspireTests;
 
-public class WebApplicationTests : IClassFixture<WebApplicationFactory<CodeUI.Web.Program>>
+public class WebApplicationTests : IClassFixture<CodeUI.Tests.TestWebApplicationFactory<CodeUI.Web.Program>>
 {
-    private readonly WebApplicationFactory<CodeUI.Web.Program> _factory;
+    private readonly CodeUI.Tests.TestWebApplicationFactory<CodeUI.Web.Program> _factory;
 
-    public WebApplicationTests(WebApplicationFactory<CodeUI.Web.Program> factory)
+    public WebApplicationTests(CodeUI.Tests.TestWebApplicationFactory<CodeUI.Web.Program> factory)
     {
         _factory = factory;
     }

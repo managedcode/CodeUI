@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using CodeUI.Core.Services;
 
@@ -7,11 +6,11 @@ namespace CodeUI.Tests.Components;
 /// <summary>
 /// Tests for the Terminal component functionality.
 /// </summary>
-public class TerminalComponentTests : IClassFixture<WebApplicationFactory<CodeUI.Web.Program>>
+public class TerminalComponentTests : IClassFixture<TestWebApplicationFactory<CodeUI.Web.Program>>
 {
-    private readonly WebApplicationFactory<CodeUI.Web.Program> _factory;
+    private readonly TestWebApplicationFactory<CodeUI.Web.Program> _factory;
 
-    public TerminalComponentTests(WebApplicationFactory<CodeUI.Web.Program> factory)
+    public TerminalComponentTests(TestWebApplicationFactory<CodeUI.Web.Program> factory)
     {
         _factory = factory;
     }

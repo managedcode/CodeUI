@@ -43,24 +43,27 @@ public class Program
 
         var app = builder.Build();
 
-        // Ensure SQLite database is created
-        using (var scope = app.Services.CreateScope())
+        // Ensure SQLite database is created (skip for testing environment)
+        if (!app.Environment.IsEnvironment("Testing"))
         {
-            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            
-            // Ensure directory exists for SQLite database
-            var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=codeui.db";
-            if (connectionString.Contains("Data Source=") && (connectionString.Contains("/") || connectionString.Contains("\\")))
+            using (var scope = app.Services.CreateScope())
             {
-                var dbPath = connectionString.Replace("Data Source=", "").Split(';')[0];
-                var directory = Path.GetDirectoryName(dbPath);
-                if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+                var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                
+                // Ensure directory exists for SQLite database
+                var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=codeui.db";
+                if (connectionString.Contains("Data Source=") && (connectionString.Contains("/") || connectionString.Contains("\\")))
                 {
-                    Directory.CreateDirectory(directory);
+                    var dbPath = connectionString.Replace("Data Source=", "").Split(';')[0];
+                    var directory = Path.GetDirectoryName(dbPath);
+                    if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+                    {
+                        Directory.CreateDirectory(directory);
+                    }
                 }
+                
+                context.Database.EnsureCreated();
             }
-            
-            context.Database.EnsureCreated();
         }
 
         // Configure the HTTP request pipeline.
