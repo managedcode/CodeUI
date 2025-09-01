@@ -10,17 +10,31 @@
     <link rel="stylesheet" href="CodeUI.Web.styles.css" />
     <link rel="icon" type="image/png" href="favicon.png" />
     
+    <!-- MudBlazor CSS -->
+    <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" rel="stylesheet" />
+    <link href="_content/MudBlazor/MudBlazor.min.css" rel="stylesheet" />
+    
     <!-- XTerm.js CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
+    
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
     
     <HeadOutlet />
 </head>
 
 <body>
     <CascadingAuthenticationState>
+        <MudThemeProvider />
+        <MudPopoverProvider />
+        <MudDialogProvider />
+        <MudSnackbarProvider />
         <Routes />
     </CascadingAuthenticationState>
     <script src="_framework/blazor.web.js"></script>
+    
+    <!-- MudBlazor JavaScript -->
+    <script src="_content/MudBlazor/MudBlazor.min.js"></script>
     
     <!-- XTerm.js JavaScript -->
     <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
