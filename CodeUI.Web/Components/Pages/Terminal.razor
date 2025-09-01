@@ -402,7 +402,7 @@
     }
 
     [JSInvokable]
-    public async void OnTerminalResize(int cols, int rows)
+    public async Task OnTerminalResize(int cols, int rows)
     {
         if (_isDisposed)
             return;
