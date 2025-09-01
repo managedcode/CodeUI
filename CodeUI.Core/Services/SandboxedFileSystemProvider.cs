@@ -63,16 +63,9 @@ public class SandboxedFileSystemProvider : ISandboxedFileSystemProvider, IDispos
 
         try
         {
-            // Remove any potential path traversal attempts
-            path = path.Replace("../", "").Replace("..\\", "");
-            
             // Get full path to resolve any relative components
             var fullPath = Path.GetFullPath(path);
             
-            // Additional check for path traversal after normalization
-            if (fullPath.Contains(".."))
-                throw new SecurityException("Path traversal detected");
-                
             return fullPath;
         }
         catch (Exception ex) when (!(ex is SecurityException))
