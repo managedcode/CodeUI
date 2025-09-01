@@ -19,6 +19,7 @@ public partial class CliExecutor : ICliExecutor
     private CancellationTokenSource? _currentCancellationSource;
     private volatile ProcessInfo? _currentProcess;
     private AnonymousPipeServerStream? _stdinPipeServer;
+    private AnonymousPipeClientStream? _stdinPipeClient;
     private StreamWriter? _stdinWriter;
     private bool _disposed;
 
@@ -79,10 +80,10 @@ public partial class CliExecutor : ICliExecutor
             {
                 // Create anonymous pipe for stdin
                 _stdinPipeServer = new AnonymousPipeServerStream(PipeDirection.Out, HandleInheritability.Inheritable);
-                var stdinPipeClient = new AnonymousPipeClientStream(PipeDirection.In, _stdinPipeServer.GetClientHandleAsString());
+                _stdinPipeClient = new AnonymousPipeClientStream(PipeDirection.In, _stdinPipeServer.GetClientHandleAsString());
                 _stdinWriter = new StreamWriter(_stdinPipeServer) { AutoFlush = true };
 
-                commandBuilder = commandBuilder.WithStandardInputPipe(PipeSource.FromStream(stdinPipeClient));
+                commandBuilder = commandBuilder.WithStandardInputPipe(PipeSource.FromStream(_stdinPipeClient));
             }
 
             _currentCommand = commandBuilder;
@@ -347,6 +348,19 @@ public partial class CliExecutor : ICliExecutor
             }
         }
         
+        if (_stdinPipeClient != null)
+        {
+            try
+            {
+                _stdinPipeClient.Dispose();
+                _stdinPipeClient = null;
+            }
+            catch
+            {
+                // Ignore errors during cleanup
+            }
+        }
+        
         if (_stdinPipeServer != null)
         {
             try
@@ -390,6 +404,7 @@ public partial class CliExecutor : ICliExecutor
         }
         
         _stdinWriter?.Dispose();
+        _stdinPipeClient?.Dispose();
         _stdinPipeServer?.Dispose();
         _currentCancellationSource?.Dispose();
         _outputSubject.Dispose();
