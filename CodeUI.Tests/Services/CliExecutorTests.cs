@@ -6,13 +6,8 @@ namespace CodeUI.Tests.Services;
 
 public class CliExecutorTests : IDisposable
 {
-    private readonly CliExecutor _cliExecutor;
+    private readonly CliExecutor _cliExecutor = new();
     private bool _disposed;
-
-    public CliExecutorTests()
-    {
-        _cliExecutor = new CliExecutor();
-    }
 
     [Fact]
     public void Constructor_ShouldInitializeCorrectly()
@@ -22,7 +17,7 @@ public class CliExecutorTests : IDisposable
         Assert.NotNull(_cliExecutor.Output);
     }
 
-    [Fact(Skip = "Flaky test - command availability detection needs improvement")]
+    [Fact]
     public async Task IsCommandAvailableAsync_ShouldReturnTrueForExistingCommand()
     {
         // Act - Test with echo which we know is available

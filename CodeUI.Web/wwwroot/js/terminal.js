@@ -4,12 +4,18 @@ window.xtermTerminal = {
 
     // Initialize a new terminal instance
     create: function (elementId, dotNetObjectRef) {
+        console.log('xtermTerminal.create called with elementId:', elementId);
+        console.log('dotNetObjectRef:', dotNetObjectRef);
+        
         try {
             const element = document.getElementById(elementId);
             if (!element) {
                 console.error('Terminal element not found:', elementId);
+                console.log('Available elements with terminal in ID:', 
+                    Array.from(document.querySelectorAll('[id*="terminal"]')).map(e => e.id));
                 return false;
             }
+            console.log('Found terminal element:', element.id)
 
             // Create terminal with configuration
             const terminal = new Terminal({
@@ -36,8 +42,13 @@ window.xtermTerminal = {
 
             // Handle input
             terminal.onData(data => {
+                console.log('Terminal data received:', data);
                 try {
-                    dotNetObjectRef.invokeMethodAsync('OnTerminalInput', data);
+                    if (dotNetObjectRef && dotNetObjectRef.invokeMethodAsync) {
+                        dotNetObjectRef.invokeMethodAsync('OnTerminalInput', data);
+                    } else {
+                        console.warn('dotNetObjectRef is not valid, cannot send input to .NET');
+                    }
                 } catch (error) {
                     console.error('Error sending input to .NET:', error);
                 }

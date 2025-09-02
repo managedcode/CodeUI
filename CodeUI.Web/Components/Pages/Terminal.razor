@@ -104,7 +104,20 @@
     {
         if (firstRender && !_isDisposed)
         {
-            await InitializeTerminalAsync();
+            // Small delay to ensure DOM and JavaScript are ready
+            await Task.Delay(500);
+            
+            // Try multiple times if initialization fails
+            int attempts = 0;
+            while (attempts < 3 && !_isInitialized)
+            {
+                await InitializeTerminalAsync();
+                if (!_isInitialized)
+                {
+                    await Task.Delay(1000);
+                    attempts++;
+                }
+            }
         }
     }
 
@@ -112,14 +125,17 @@
     {
         try
         {
+            Console.WriteLine($"Initializing terminal with ID: {_terminalId}");
             _dotNetRef = DotNetObjectReference.Create(this);
             
             // Initialize terminal with JavaScript interop
             var initialized = await JSRuntime.InvokeAsync<bool>("xtermTerminal.create", _terminalId, _dotNetRef);
+            Console.WriteLine($"Terminal initialization result: {initialized}");
             
             if (initialized)
             {
                 _isInitialized = true;
+                Console.WriteLine("Terminal successfully initialized");
                 
                 // Subscribe to CLI output
                 _outputSubscription = CliExecutor.Output
@@ -162,8 +178,13 @@
     [JSInvokable]
     public async Task OnTerminalInput(string input)
     {
+        Console.WriteLine($"OnTerminalInput called with: {input}");
+        
         if (_isDisposed || !_isInitialized)
+        {
+            Console.WriteLine($"Terminal not ready: disposed={_isDisposed}, initialized={_isInitialized}");
             return;
+        }
 
         try
         {
