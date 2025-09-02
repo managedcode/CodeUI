@@ -47,6 +47,9 @@ public class Program
         
         // Register file system services
         builder.Services.AddScoped<IFileSystemService, FileSystemService>();
+        
+        // Register Git services
+        builder.Services.AddScoped<IGitService, GitService>();
 
         var app = builder.Build();
 

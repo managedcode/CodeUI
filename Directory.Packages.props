@@ -44,5 +44,8 @@
 
     <!-- UI Component packages -->
     <PackageVersion Include="MudBlazor" Version="8.0.0" />
+
+    <!-- Git Integration packages -->
+    <PackageVersion Include="LibGit2Sharp" Version="0.31.0" />
   </ItemGroup>
 </Project>
