@@ -1,5 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
+    <Sdk Name="Aspire.AppHost.Sdk" Version="9.4.1"/>
+    
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net9.0</TargetFramework>
@@ -9,11 +11,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Aspire.Hosting" />
+      <PackageReference Include="Aspire.Hosting.AppHost" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\CodeUI.Web\CodeUI.Web.csproj" />
   </ItemGroup>
-
+    
 </Project>
