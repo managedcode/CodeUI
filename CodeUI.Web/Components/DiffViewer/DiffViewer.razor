@@ -1,0 +1,596 @@
+@using CodeUI.Core.Models
+@using CodeUI.Core.Services
+@using Microsoft.JSInterop
+@inject IJSRuntime JSRuntime
+@inject IDiffService DiffService
+@inject ISnackbar Snackbar
+@implements IAsyncDisposable
+
+<MudContainer MaxWidth="MaxWidth.False" Class="pa-4">
+    <MudGrid>
+        <!-- Header Controls -->
+        <MudItem xs="12">
+            <MudPaper Class="pa-4 mb-4">
+                <MudGrid Justify="Justify.Center">
+                    <MudItem xs="12" md="6">
+                        <MudText Typo="Typo.h5">
+                            <MudIcon Icon="@GetFileIcon()" Class="mr-2" />
+                            @(FileDiff?.Path ?? "Diff Viewer")
+                        </MudText>
+                        @if (FileDiff != null)
+                        {
+                            <MudText Typo="Typo.body2" Class="text-muted">
+                                @GetChangeTypeText() • +@FileDiff.LinesAdded -@FileDiff.LinesDeleted
+                            </MudText>
+                        }
+                    </MudItem>
+                    <MudItem xs="12" md="6" Class="d-flex justify-end">
+                        <MudButtonGroup Variant="Variant.Outlined" Size="Size.Small" Class="mr-2">
+                            <MudButton StartIcon="@Icons.Material.Filled.ViewColumn"
+                                     Color="@(_viewMode == DiffViewMode.SideBySide ? Color.Primary : Color.Default)"
+                                     OnClick="() => SetViewMode(DiffViewMode.SideBySide)">
+                                Side by Side
+                            </MudButton>
+                            <MudButton StartIcon="@Icons.Material.Filled.ViewStream"
+                                     Color="@(_viewMode == DiffViewMode.Unified ? Color.Primary : Color.Default)"
+                                     OnClick="() => SetViewMode(DiffViewMode.Unified)">
+                                Unified
+                            </MudButton>
+                        </MudButtonGroup>
+                        
+                        @if (FileDiff?.IsInteractive == true)
+                        {
+                            <MudButtonGroup Variant="Variant.Filled" Size="Size.Small">
+                                <MudButton StartIcon="@Icons.Material.Filled.CheckCircle"
+                                         Color="Color.Success"
+                                         OnClick="AcceptAllChanges">
+                                    Accept All
+                                </MudButton>
+                                <MudButton StartIcon="@Icons.Material.Filled.Cancel"
+                                         Color="Color.Error"
+                                         OnClick="RejectAllChanges">
+                                    Reject All
+                                </MudButton>
+                            </MudButtonGroup>
+                        }
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
+        </MudItem>
+
+        <!-- Diff Content -->
+        <MudItem xs="12">
+            <MudPaper Class="pa-0" MinHeight="600px">
+                @if (_isLoading)
+                {
+                    <div class="d-flex justify-center align-center" style="height: 400px;">
+                        <MudProgressCircular Indeterminate="true" />
+                        <MudText Class="ml-4">Loading diff...</MudText>
+                    </div>
+                }
+                else if (FileDiff == null)
+                {
+                    <div class="d-flex justify-center align-center" style="height: 400px;">
+                        <MudText Typo="Typo.h6" Class="text-muted">No diff to display</MudText>
+                    </div>
+                }
+                else
+                {
+                    <!-- Monaco Diff Editor -->
+                    <div id="@_editorId" style="height: 600px; width: 100%;"></div>
+                    
+                    <!-- Line-by-line controls (mobile responsive) -->
+                    @if (FileDiff.IsInteractive && _viewMode == DiffViewMode.Unified)
+                    {
+                        <MudExpansionPanels Class="mt-4 d-block d-md-none">
+                            <MudExpansionPanel Text="Line-by-line Controls">
+                                @foreach (var chunk in FileDiff.Chunks)
+                                {
+                                    <MudText Typo="Typo.subtitle2" Class="mb-2">@chunk.Header</MudText>
+                                    @foreach (var line in chunk.Lines.Where(l => l.Type != DiffLineType.Unchanged))
+                                    {
+                                        <MudCard Class="mb-2" Elevation="1">
+                                            <MudCardContent Class="pa-2">
+                                                <div class="d-flex align-center">
+                                                    <MudChip T="string" 
+                                                           Color="@GetLineTypeColor(line.Type)" 
+                                                           Size="Size.Small" 
+                                                           Class="mr-2">
+                                                        @GetLineTypeText(line.Type)
+                                                    </MudChip>
+                                                    <MudText Typo="Typo.body2" Style="font-family: monospace; flex: 1;">
+                                                        @line.Content
+                                                    </MudText>
+                                                    <MudButtonGroup Size="Size.Small">
+                                                        <MudIconButton Icon="@Icons.Material.Filled.Check"
+                                                                     Color="@(line.IsAccepted ? Color.Success : Color.Default)"
+                                                                     OnClick="() => ToggleLineAccepted(line)" />
+                                                        <MudIconButton Icon="@Icons.Material.Filled.Close"
+                                                                     Color="@(line.IsRejected ? Color.Error : Color.Default)"
+                                                                     OnClick="() => ToggleLineRejected(line)" />
+                                                    </MudButtonGroup>
+                                                </div>
+                                            </MudCardContent>
+                                        </MudCard>
+                                    }
+                                }
+                            </MudExpansionPanel>
+                        </MudExpansionPanels>
+                    }
+                }
+            </MudPaper>
+        </MudItem>
+
+        <!-- Summary Panel -->
+        @if (FileDiff != null && FileDiff.IsInteractive)
+        {
+            <MudItem xs="12">
+                <MudPaper Class="pa-4 mt-4">
+                    <MudText Typo="Typo.h6" Class="mb-3">Change Summary</MudText>
+                    <MudGrid>
+                        <MudItem xs="6" md="3">
+                            <MudText Typo="Typo.subtitle2">Total Changes</MudText>
+                            <MudText Typo="Typo.h6">@GetTotalChanges()</MudText>
+                        </MudItem>
+                        <MudItem xs="6" md="3">
+                            <MudText Typo="Typo.subtitle2">Accepted</MudText>
+                            <MudText Typo="Typo.h6" Color="Color.Success">@GetAcceptedChanges()</MudText>
+                        </MudItem>
+                        <MudItem xs="6" md="3">
+                            <MudText Typo="Typo.subtitle2">Rejected</MudText>
+                            <MudText Typo="Typo.h6" Color="Color.Error">@GetRejectedChanges()</MudText>
+                        </MudItem>
+                        <MudItem xs="6" md="3">
+                            <MudText Typo="Typo.subtitle2">Pending</MudText>
+                            <MudText Typo="Typo.h6" Color="Color.Warning">@GetPendingChanges()</MudText>
+                        </MudItem>
+                    </MudGrid>
+                    
+                    @if (OnApplyChanges.HasDelegate)
+                    {
+                        <MudButton Variant="Variant.Filled" 
+                                 Color="Color.Primary" 
+                                 StartIcon="@Icons.Material.Filled.Save"
+                                 OnClick="ApplyChanges"
+                                 Class="mt-3">
+                            Apply Selected Changes
+                        </MudButton>
+                    }
+                </MudPaper>
+            </MudItem>
+        }
+    </MudGrid>
+</MudContainer>
+
+@code {
+    /// <summary>
+    /// The enhanced file diff to display
+    /// </summary>
+    [Parameter] public EnhancedGitFileDiff? FileDiff { get; set; }
+    
+    /// <summary>
+    /// Callback when changes are applied
+    /// </summary>
+    [Parameter] public EventCallback<DiffOperationResult> OnApplyChanges { get; set; }
+    
+    /// <summary>
+    /// Initial view mode
+    /// </summary>
+    [Parameter] public DiffViewMode InitialViewMode { get; set; } = DiffViewMode.SideBySide;
+
+    private DiffViewMode _viewMode = DiffViewMode.SideBySide;
+    private bool _isLoading = false;
+    private string _editorId = $"diff-editor-{Guid.NewGuid():N}";
+    private IJSObjectReference? _jsModule;
+    private DotNetObjectReference<DiffViewer>? _dotNetRef;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _viewMode = InitialViewMode;
+        _dotNetRef = DotNetObjectReference.Create(this);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await InitializeEditor();
+        }
+        
+        if (FileDiff != null)
+        {
+            await UpdateEditorContent();
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (FileDiff != null)
+        {
+            _isLoading = true;
+            await InvokeAsync(StateHasChanged);
+            
+            // Update editor content when FileDiff changes
+            await UpdateEditorContent();
+            
+            _isLoading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task InitializeEditor()
+    {
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("monacoDiffEditor.initialize");
+            
+            var options = new
+            {
+                readOnly = FileDiff?.IsInteractive != true,
+                renderSideBySide = _viewMode == DiffViewMode.SideBySide
+            };
+
+            await JSRuntime.InvokeAsync<bool>("monacoDiffEditor.createDiffEditor", _editorId, options, _dotNetRef);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to initialize diff editor: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task UpdateEditorContent()
+    {
+        if (FileDiff == null) return;
+
+        try
+        {
+            var originalContent = GetOriginalContent();
+            var modifiedContent = GetModifiedContent();
+            
+            await JSRuntime.InvokeAsync<bool>("monacoDiffEditor.setContent", 
+                _editorId, originalContent, modifiedContent, FileDiff.Language);
+                
+            await UpdateLineDecorations();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to update editor content: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task SetViewMode(DiffViewMode mode)
+    {
+        _viewMode = mode;
+        
+        try
+        {
+            await JSRuntime.InvokeAsync<bool>("monacoDiffEditor.setViewMode", 
+                _editorId, mode == DiffViewMode.SideBySide);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to change view mode: {ex.Message}", Severity.Error);
+        }
+        
+        await InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public async Task OnLineClicked(int lineNumber)
+    {
+        if (FileDiff?.IsInteractive != true) return;
+
+        // Find the line that was clicked
+        var line = FindLineByNumber(lineNumber);
+        if (line != null && line.Type != DiffLineType.Unchanged)
+        {
+            // Toggle between accepted/rejected/neutral
+            if (line.IsAccepted)
+            {
+                line.IsAccepted = false;
+                line.IsRejected = true;
+            }
+            else if (line.IsRejected)
+            {
+                line.IsAccepted = false;
+                line.IsRejected = false;
+            }
+            else
+            {
+                line.IsAccepted = true;
+                line.IsRejected = false;
+            }
+
+            await UpdateLineDecorations();
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task ToggleLineAccepted(DiffLine line)
+    {
+        line.IsAccepted = !line.IsAccepted;
+        if (line.IsAccepted)
+        {
+            line.IsRejected = false;
+        }
+        
+        await UpdateLineDecorations();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ToggleLineRejected(DiffLine line)
+    {
+        line.IsRejected = !line.IsRejected;
+        if (line.IsRejected)
+        {
+            line.IsAccepted = false;
+        }
+        
+        await UpdateLineDecorations();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task AcceptAllChanges()
+    {
+        if (FileDiff == null) return;
+
+        foreach (var chunk in FileDiff.Chunks)
+        {
+            foreach (var line in chunk.Lines.Where(l => l.Type != DiffLineType.Unchanged))
+            {
+                line.IsAccepted = true;
+                line.IsRejected = false;
+            }
+        }
+
+        await UpdateLineDecorations();
+        await InvokeAsync(StateHasChanged);
+        Snackbar.Add("All changes accepted", Severity.Success);
+    }
+
+    private async Task RejectAllChanges()
+    {
+        if (FileDiff == null) return;
+
+        foreach (var chunk in FileDiff.Chunks)
+        {
+            foreach (var line in chunk.Lines.Where(l => l.Type != DiffLineType.Unchanged))
+            {
+                line.IsAccepted = false;
+                line.IsRejected = true;
+            }
+        }
+
+        await UpdateLineDecorations();
+        await InvokeAsync(StateHasChanged);
+        Snackbar.Add("All changes rejected", Severity.Warning);
+    }
+
+    private async Task ApplyChanges()
+    {
+        if (FileDiff == null || !OnApplyChanges.HasDelegate) return;
+
+        try
+        {
+            var result = await DiffService.ApplyLineChangesAsync(FileDiff);
+            await OnApplyChanges.InvokeAsync(result);
+            
+            if (result.IsSuccess)
+            {
+                Snackbar.Add("Changes applied successfully", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add($"Failed to apply changes: {result.ErrorMessage}", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error applying changes: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task UpdateLineDecorations()
+    {
+        if (FileDiff?.IsInteractive != true) return;
+
+        try
+        {
+            var decorations = new List<object>();
+            var lineNumber = 1;
+
+            foreach (var chunk in FileDiff.Chunks)
+            {
+                foreach (var line in chunk.Lines)
+                {
+                    if (line.Type != DiffLineType.Unchanged)
+                    {
+                        var className = GetLineDecorationClass(line);
+                        var glyphClassName = GetGlyphDecorationClass(line);
+                        var hoverMessage = GetLineHoverMessage(line);
+
+                        decorations.Add(new
+                        {
+                            lineNumber = lineNumber,
+                            className = className,
+                            glyphMarginClassName = glyphClassName,
+                            hoverMessage = hoverMessage
+                        });
+                    }
+                    lineNumber++;
+                }
+            }
+
+            await JSRuntime.InvokeAsync<bool>("monacoDiffEditor.setLineDecorations", _editorId, decorations);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to update line decorations: {ex.Message}");
+        }
+    }
+
+    private string GetOriginalContent()
+    {
+        if (FileDiff?.Chunks == null) return string.Empty;
+        
+        var lines = new List<string>();
+        foreach (var chunk in FileDiff.Chunks)
+        {
+            foreach (var line in chunk.Lines.Where(l => l.Type != DiffLineType.Added))
+            {
+                lines.Add(line.Content);
+            }
+        }
+        return string.Join("\n", lines);
+    }
+
+    private string GetModifiedContent()
+    {
+        if (FileDiff?.Chunks == null) return string.Empty;
+        
+        var lines = new List<string>();
+        foreach (var chunk in FileDiff.Chunks)
+        {
+            foreach (var line in chunk.Lines.Where(l => l.Type != DiffLineType.Deleted))
+            {
+                lines.Add(line.Content);
+            }
+        }
+        return string.Join("\n", lines);
+    }
+
+    private DiffLine? FindLineByNumber(int lineNumber)
+    {
+        if (FileDiff?.Chunks == null) return null;
+        
+        var currentLine = 1;
+        foreach (var chunk in FileDiff.Chunks)
+        {
+            foreach (var line in chunk.Lines)
+            {
+                if (currentLine == lineNumber)
+                {
+                    return line;
+                }
+                currentLine++;
+            }
+        }
+        return null;
+    }
+
+    private string GetFileIcon()
+    {
+        if (FileDiff?.Path == null) return Icons.Material.Filled.Description;
+        
+        var extension = Path.GetExtension(FileDiff.Path).ToLowerInvariant();
+        return extension switch
+        {
+            ".cs" => Icons.Material.Filled.Code,
+            ".js" or ".ts" => Icons.Material.Filled.Javascript,
+            ".html" or ".htm" => Icons.Material.Filled.Web,
+            ".css" => Icons.Material.Filled.Palette,
+            ".json" => Icons.Material.Filled.DataObject,
+            ".xml" => Icons.Material.Filled.Code,
+            ".md" => Icons.Material.Filled.Article,
+            ".razor" => Icons.Material.Filled.Bolt,
+            _ => Icons.Material.Filled.Description
+        };
+    }
+
+    private string GetChangeTypeText()
+    {
+        return FileDiff?.ChangeType switch
+        {
+            GitChangeType.Added => "Added",
+            GitChangeType.Deleted => "Deleted",
+            GitChangeType.Modified => "Modified",
+            GitChangeType.Renamed => "Renamed",
+            GitChangeType.Copied => "Copied",
+            _ => "Unknown"
+        };
+    }
+
+    private Color GetLineTypeColor(DiffLineType type)
+    {
+        return type switch
+        {
+            DiffLineType.Added => Color.Success,
+            DiffLineType.Deleted => Color.Error,
+            DiffLineType.Modified => Color.Warning,
+            _ => Color.Default
+        };
+    }
+
+    private string GetLineTypeText(DiffLineType type)
+    {
+        return type switch
+        {
+            DiffLineType.Added => "+",
+            DiffLineType.Deleted => "-",
+            DiffLineType.Modified => "~",
+            _ => " "
+        };
+    }
+
+    private string GetLineDecorationClass(DiffLine line)
+    {
+        if (line.IsAccepted) return "diff-line-accepted";
+        if (line.IsRejected) return "diff-line-rejected";
+        return string.Empty;
+    }
+
+    private string GetGlyphDecorationClass(DiffLine line)
+    {
+        if (line.IsAccepted) return "diff-glyph-accepted";
+        if (line.IsRejected) return "diff-glyph-rejected";
+        return "diff-glyph-pending";
+    }
+
+    private string GetLineHoverMessage(DiffLine line)
+    {
+        if (line.IsAccepted) return "Change accepted - click to reject";
+        if (line.IsRejected) return "Change rejected - click to accept";
+        return "Click to accept/reject this change";
+    }
+
+    private int GetTotalChanges()
+    {
+        return FileDiff?.Chunks?.SelectMany(c => c.Lines)
+            .Count(l => l.Type != DiffLineType.Unchanged) ?? 0;
+    }
+
+    private int GetAcceptedChanges()
+    {
+        return FileDiff?.Chunks?.SelectMany(c => c.Lines)
+            .Count(l => l.IsAccepted) ?? 0;
+    }
+
+    private int GetRejectedChanges()
+    {
+        return FileDiff?.Chunks?.SelectMany(c => c.Lines)
+            .Count(l => l.IsRejected) ?? 0;
+    }
+
+    private int GetPendingChanges()
+    {
+        return FileDiff?.Chunks?.SelectMany(c => c.Lines)
+            .Count(l => l.Type != DiffLineType.Unchanged && !l.IsAccepted && !l.IsRejected) ?? 0;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            if (!string.IsNullOrEmpty(_editorId))
+            {
+                await JSRuntime.InvokeVoidAsync("monacoDiffEditor.dispose", _editorId);
+            }
+        }
+        catch (Exception)
+        {
+            // Ignore disposal errors
+        }
+
+        _dotNetRef?.Dispose();
+    }
+}

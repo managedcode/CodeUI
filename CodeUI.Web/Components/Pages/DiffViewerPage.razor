@@ -1,0 +1,274 @@
+@page "/diff"
+@using CodeUI.Web.Components.DiffViewer
+@using CodeUI.Core.Models
+@using CodeUI.Core.Services
+@inject IGitService GitService
+@inject IDiffService DiffService
+@inject ISnackbar Snackbar
+@attribute [StreamRendering]
+
+<PageTitle>Diff Viewer - CodeUI</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.False" Class="pa-4">
+    <MudGrid>
+        <!-- Header -->
+        <MudItem xs="12">
+            <MudPaper Class="pa-4 mb-4">
+                <MudGrid Justify="Justify.Center">
+                    <MudItem xs="12" md="8">
+                        <MudText Typo="Typo.h4">
+                            <MudIcon Icon="@Icons.Material.Filled.Compare" Class="mr-2" />
+                            Git Diff Viewer
+                        </MudText>
+                        <MudText Typo="Typo.body1" Class="text-muted">
+                            View and interact with Git diffs with syntax highlighting and line-by-line controls
+                        </MudText>
+                    </MudItem>
+                    <MudItem xs="12" md="4" Class="d-flex justify-end">
+                        <MudButton Variant="Variant.Filled" 
+                                 Color="Color.Primary" 
+                                 StartIcon="@Icons.Material.Filled.Refresh"
+                                 OnClick="LoadDiffs"
+                                 Disabled="_isLoading">
+                            @(_isLoading ? "Loading..." : "Refresh Diffs")
+                        </MudButton>
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
+        </MudItem>
+
+        <!-- File Selection -->
+        @if (_availableDiffs.Any())
+        {
+            <MudItem xs="12">
+                <MudPaper Class="pa-4 mb-4">
+                    <MudText Typo="Typo.h6" Class="mb-3">Modified Files</MudText>
+                    <MudGrid>
+                        @foreach (var diff in _availableDiffs)
+                        {
+                            <MudItem xs="12" sm="6" md="4" lg="3">
+                                <MudCard Class="@GetFileCardClass(diff)" 
+                                       Style="cursor: pointer; transition: all 0.2s ease;"
+                                       @onclick="() => SelectDiff(diff)">
+                                    <MudCardContent Class="pa-3">
+                                        <div class="d-flex align-center mb-2">
+                                            <MudIcon Icon="@GetFileIcon(diff.Path)" Class="mr-2" Size="Size.Small" />
+                                            <MudText Typo="Typo.subtitle2" Style="word-break: break-word;">
+                                                @Path.GetFileName(diff.Path)
+                                            </MudText>
+                                        </div>
+                                        <MudText Typo="Typo.body2" Class="text-muted mb-2">
+                                            @diff.Path
+                                        </MudText>
+                                        <div class="d-flex justify-space-between align-center">
+                                            <MudChip T="string" 
+                                                   Color="@GetChangeTypeColor(diff.ChangeType)" 
+                                                   Size="Size.Small">
+                                                @diff.ChangeType
+                                            </MudChip>
+                                            <MudText Typo="Typo.caption">
+                                                +@diff.LinesAdded -@diff.LinesDeleted
+                                            </MudText>
+                                        </div>
+                                    </MudCardContent>
+                                </MudCard>
+                            </MudItem>
+                        }
+                    </MudGrid>
+                </MudPaper>
+            </MudItem>
+        }
+
+        <!-- Demo/Sample Data Button -->
+        @if (!_availableDiffs.Any() && !_isLoading)
+        {
+            <MudItem xs="12">
+                <MudPaper Class="pa-4 mb-4 text-center">
+                    <MudIcon Icon="@Icons.Material.Filled.Info" Size="Size.Large" Class="mb-3 text-muted" />
+                    <MudText Typo="Typo.h6" Class="mb-2">No Git changes found</MudText>
+                    <MudText Typo="Typo.body1" Class="text-muted mb-4">
+                        No modified files detected in the current repository.
+                    </MudText>
+                    <MudButton Variant="Variant.Outlined" 
+                             Color="Color.Primary" 
+                             StartIcon="@Icons.Material.Filled.Preview"
+                             OnClick="LoadSampleDiff">
+                        View Sample Diff
+                    </MudButton>
+                </MudPaper>
+            </MudItem>
+        }
+
+        <!-- Diff Viewer -->
+        @if (_selectedDiff != null)
+        {
+            <MudItem xs="12">
+                <DiffViewer FileDiff="_selectedDiff" 
+                          OnApplyChanges="HandleApplyChanges"
+                          InitialViewMode="DiffViewMode.SideBySide" />
+            </MudItem>
+        }
+    </MudGrid>
+</MudContainer>
+
+@code {
+    private List<GitFileDiff> _availableDiffs = new();
+    private EnhancedGitFileDiff? _selectedDiff;
+    private bool _isLoading = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDiffs();
+    }
+
+    private async Task LoadDiffs()
+    {
+        _isLoading = true;
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            // Check if we're in a Git repository
+            var isGitRepo = await GitService.IsGitRepositoryAsync();
+            if (!isGitRepo)
+            {
+                Snackbar.Add("Not in a Git repository", Severity.Warning);
+                _availableDiffs.Clear();
+                return;
+            }
+
+            // Get all file diffs
+            var diffs = await GitService.GetAllFilesDiffAsync();
+            _availableDiffs = diffs;
+
+            if (!_availableDiffs.Any())
+            {
+                Snackbar.Add("No modified files found", Severity.Info);
+            }
+            else
+            {
+                Snackbar.Add($"Found {_availableDiffs.Count} modified files", Severity.Success);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading diffs: {ex.Message}", Severity.Error);
+            _availableDiffs.Clear();
+        }
+        finally
+        {
+            _isLoading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task SelectDiff(GitFileDiff diff)
+    {
+        try
+        {
+            _selectedDiff = await DiffService.ProcessDiffAsync(diff);
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error processing diff: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task HandleApplyChanges(DiffOperationResult result)
+    {
+        if (result.IsSuccess)
+        {
+            Snackbar.Add($"Applied changes to {result.ProcessedLines.Count} lines", Severity.Success);
+            // In a real implementation, you might want to stage the changes or update the file
+        }
+        else
+        {
+            Snackbar.Add($"Failed to apply changes: {result.ErrorMessage}", Severity.Error);
+        }
+    }
+
+    private async Task LoadSampleDiff()
+    {
+        // Create a sample diff to demonstrate the component
+        var sampleDiff = new GitFileDiff
+        {
+            Path = "src/Example.cs",
+            ChangeType = GitChangeType.Modified,
+            LinesAdded = 3,
+            LinesDeleted = 2,
+            Patch = @"--- a/src/Example.cs
++++ b/src/Example.cs
+@@ -1,8 +1,9 @@
+ using System;
+ using System.Collections.Generic;
++using System.Linq;
+ 
+ namespace Example
+ {
+     public class Calculator
+     {
+-        public int Add(int a, int b)
++        public int Add(int x, int y)
+         {
+-            return a + b;
++            return x + y;
+         }
++        
++        public int Multiply(int x, int y) => x * y;
+     }
+ }"
+        };
+
+        try
+        {
+            _selectedDiff = await DiffService.ProcessDiffAsync(sampleDiff);
+            await InvokeAsync(StateHasChanged);
+            Snackbar.Add("Sample diff loaded", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading sample diff: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private string GetFileCardClass(GitFileDiff diff)
+    {
+        var baseClass = "mud-elevation-2";
+        if (_selectedDiff?.Path == diff.Path)
+        {
+            baseClass += " mud-theme-primary";
+        }
+        return baseClass;
+    }
+
+    private string GetFileIcon(string path)
+    {
+        var extension = Path.GetExtension(path).ToLowerInvariant();
+        return extension switch
+        {
+            ".cs" => Icons.Material.Filled.Code,
+            ".js" or ".ts" => Icons.Material.Filled.Javascript,
+            ".html" or ".htm" => Icons.Material.Filled.Web,
+            ".css" => Icons.Material.Filled.Palette,
+            ".json" => Icons.Material.Filled.DataObject,
+            ".xml" => Icons.Material.Filled.Code,
+            ".md" => Icons.Material.Filled.Article,
+            ".razor" => Icons.Material.Filled.Bolt,
+            _ => Icons.Material.Filled.Description
+        };
+    }
+
+    private Color GetChangeTypeColor(GitChangeType changeType)
+    {
+        return changeType switch
+        {
+            GitChangeType.Added => Color.Success,
+            GitChangeType.Deleted => Color.Error,
+            GitChangeType.Modified => Color.Warning,
+            GitChangeType.Renamed => Color.Info,
+            GitChangeType.Copied => Color.Secondary,
+            _ => Color.Default
+        };
+    }
+}
