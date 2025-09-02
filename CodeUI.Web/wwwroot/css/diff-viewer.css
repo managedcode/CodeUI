@@ -1,0 +1,186 @@
+/* Diff Viewer Styles */
+
+/* Line decoration styles for Monaco Editor */
+.diff-line-accepted {
+    background-color: rgba(30, 112, 34, 0.3) !important;
+    border-left: 3px solid #1e7022 !important;
+}
+
+.diff-line-rejected {
+    background-color: rgba(112, 34, 46, 0.3) !important;
+    border-left: 3px solid #70222e !important;
+}
+
+/* Glyph margin styles */
+.diff-glyph-accepted::before {
+    content: "✓";
+    color: #4caf50;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.diff-glyph-rejected::before {
+    content: "✗";
+    color: #f44336;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.diff-glyph-pending::before {
+    content: "◦";
+    color: #ff9800;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+/* Mobile responsive adjustments */
+@media (max-width: 768px) {
+    .diff-viewer-container {
+        padding: 8px !important;
+    }
+    
+    .diff-editor {
+        height: 400px !important;
+    }
+    
+    .diff-controls {
+        flex-direction: column !important;
+        gap: 8px !important;
+    }
+    
+    .diff-button-group {
+        width: 100% !important;
+    }
+    
+    .diff-summary-grid {
+        grid-template-columns: 1fr 1fr !important;
+    }
+}
+
+/* Line number enhancements */
+.monaco-editor .line-numbers {
+    color: #858585 !important;
+}
+
+.monaco-editor .current-line ~ .line-numbers {
+    color: #c6c6c6 !important;
+}
+
+/* Diff specific monaco editor overrides */
+.monaco-diff-editor .editor {
+    background-color: #1e1e1e !important;
+}
+
+.monaco-diff-editor .diffViewport {
+    background-color: #1e1e1e !important;
+}
+
+/* Custom scrollbar for diff viewer */
+.diff-editor-container::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.diff-editor-container::-webkit-scrollbar-track {
+    background-color: #2d2d30;
+}
+
+.diff-editor-container::-webkit-scrollbar-thumb {
+    background-color: #424242;
+    border-radius: 4px;
+}
+
+.diff-editor-container::-webkit-scrollbar-thumb:hover {
+    background-color: #4e4e4e;
+}
+
+/* Loading state styling */
+.diff-loading {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 400px;
+    color: #858585;
+}
+
+/* Summary panel styling */
+.diff-summary-panel {
+    background: linear-gradient(135deg, #1e1e1e 0%, #2d2d30 100%);
+    border: 1px solid #3e3e42;
+    border-radius: 8px;
+}
+
+.diff-summary-stat {
+    text-align: center;
+    padding: 16px;
+}
+
+.diff-summary-stat .mud-typography-h6 {
+    font-weight: 600;
+    font-size: 1.8rem;
+}
+
+/* Interactive line controls for mobile */
+.diff-line-control {
+    background: #2d2d30;
+    border: 1px solid #3e3e42;
+    border-radius: 6px;
+    margin-bottom: 8px;
+    transition: all 0.2s ease;
+}
+
+.diff-line-control:hover {
+    border-color: #569cd6;
+    box-shadow: 0 2px 8px rgba(86, 156, 214, 0.15);
+}
+
+.diff-line-content {
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 13px;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-break: break-all;
+    background: #1e1e1e;
+    padding: 8px;
+    border-radius: 4px;
+    margin: 8px 0;
+}
+
+/* Status chips */
+.diff-status-chip {
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+/* Animation for state changes */
+.diff-line-transition {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Focus states for accessibility */
+.diff-glyph-margin:focus,
+.diff-line-control:focus {
+    outline: 2px solid #569cd6;
+    outline-offset: 2px;
+}
+
+/* Dark theme specific adjustments */
+@media (prefers-color-scheme: dark) {
+    .diff-viewer-container {
+        background-color: #1e1e1e;
+        color: #cccccc;
+    }
+    
+    .diff-summary-panel {
+        background: linear-gradient(135deg, #252526 0%, #2d2d30 100%);
+        border-color: #3e3e42;
+    }
+    
+    .diff-line-control {
+        background: #252526;
+        border-color: #3e3e42;
+        color: #cccccc;
+    }
+}
