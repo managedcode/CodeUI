@@ -38,5 +38,14 @@
     <PackageVersion Include="MudBlazor" Version="8.11.0" />
     <!-- Git Integration packages -->
     <PackageVersion Include="LibGit2Sharp" Version="0.31.0" />
+    <!-- Resilience & Service Discovery -->
+    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="9.8.0" />
+    <PackageVersion Include="Microsoft.Extensions.ServiceDiscovery" Version="9.4.1" />
+    <!-- OpenTelemetry (hosted, HTTP, ASP.NET Core, Runtime, OTLP exporter) -->
+    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.12.0" />
+    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.12.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.12.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.12.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.12.0" />
   </ItemGroup>
 </Project>

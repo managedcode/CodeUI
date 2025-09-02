@@ -6,20 +6,13 @@ namespace CodeUI.Tests.Components;
 /// <summary>
 /// Tests for the Terminal component functionality.
 /// </summary>
-public class TerminalComponentTests : IClassFixture<TestWebApplicationFactory<CodeUI.Web.Program>>
+public class TerminalComponentTests(TestWebApplicationFactory<CodeUI.Web.Program> factory) : IClassFixture<TestWebApplicationFactory<CodeUI.Web.Program>>
 {
-    private readonly TestWebApplicationFactory<CodeUI.Web.Program> _factory;
-
-    public TerminalComponentTests(TestWebApplicationFactory<CodeUI.Web.Program> factory)
-    {
-        _factory = factory;
-    }
-
     [Fact]
     public void ServiceProvider_ShouldResolveCliExecutor()
     {
         // Arrange
-        using var scope = _factory.Services.CreateScope();
+        using var scope = factory.Services.CreateScope();
         var serviceProvider = scope.ServiceProvider;
 
         // Act
@@ -34,7 +27,7 @@ public class TerminalComponentTests : IClassFixture<TestWebApplicationFactory<Co
     public async Task TerminalPage_ShouldLoadSuccessfully()
     {
         // Arrange
-        var client = _factory.CreateClient();
+        var client = factory.CreateClient();
 
         // Act
         var response = await client.GetAsync("/terminal");
@@ -52,7 +45,7 @@ public class TerminalComponentTests : IClassFixture<TestWebApplicationFactory<Co
     public async Task App_ShouldIncludeXTermJavaScript()
     {
         // Arrange
-        var client = _factory.CreateClient();
+        var client = factory.CreateClient();
 
         // Act - Check the main page which includes all the JS references
         var response = await client.GetAsync("/");

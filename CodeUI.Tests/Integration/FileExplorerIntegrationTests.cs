@@ -5,20 +5,14 @@ using CodeUI.Core.Services;
 
 namespace CodeUI.Tests.Integration;
 
-public class FileExplorerIntegrationTests : IClassFixture<WebApplicationFactory<CodeUI.Web.Program>>
+public class FileExplorerIntegrationTests(WebApplicationFactory<CodeUI.Web.Program> factory)
+    : IClassFixture<WebApplicationFactory<CodeUI.Web.Program>>
 {
-    private readonly WebApplicationFactory<CodeUI.Web.Program> _factory;
-
-    public FileExplorerIntegrationTests(WebApplicationFactory<CodeUI.Web.Program> factory)
-    {
-        _factory = factory;
-    }
-
     [Fact]
     public async Task FileExplorer_PageShouldLoad()
     {
         // Arrange
-        var client = _factory.CreateClient();
+        var client = factory.CreateClient();
 
         // Act
         var response = await client.GetAsync("/fileexplorer");
@@ -34,7 +28,7 @@ public class FileExplorerIntegrationTests : IClassFixture<WebApplicationFactory<
     public void FileSystemService_ShouldBeRegisteredInDI()
     {
         // Arrange
-        using var scope = _factory.Services.CreateScope();
+        using var scope = factory.Services.CreateScope();
         var services = scope.ServiceProvider;
 
         // Act

@@ -4,6 +4,8 @@ using CodeUI.Core.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using MudBlazor.Services;
+using CodeUI.Web.Extensions;
+using Microsoft.Extensions.Hosting;
 
 namespace CodeUI.Web;
 
@@ -14,6 +16,7 @@ public class Program
         var builder = WebApplication.CreateBuilder(args);
 
         // Add services to the container.
+        builder.AddServiceDefaults();
         builder.Services.AddRazorComponents()
             .AddInteractiveServerComponents();
 
@@ -42,15 +45,8 @@ public class Program
         })
         .AddEntityFrameworkStores<ApplicationDbContext>();
 
-        // Register CLI execution services
-        builder.Services.AddScoped<ICliExecutor, CliExecutor>();
-        
-        // Register file system services
-        builder.Services.AddScoped<IFileSystemService, FileSystemService>();
-        
-        // Register Git and Diff services
-        builder.Services.AddScoped<IGitService, GitService>();
-        builder.Services.AddScoped<IDiffService, DiffService>();
+        // Register core services
+        builder.Services.AddCodeUiCoreServices();
 
         var app = builder.Build();
 
@@ -92,6 +88,8 @@ public class Program
 
         app.UseAuthentication();
         app.UseAuthorization();
+
+        app.MapDefaultEndpoints();
 
         app.MapRazorComponents<App>()
             .AddInteractiveServerRenderMode();

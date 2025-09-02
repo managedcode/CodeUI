@@ -24,6 +24,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\CodeUI.Core\CodeUI.Core.csproj" />
+    <ProjectReference Include="..\CodeUI.Orleans\CodeUI.Orleans.csproj" />
+    <ProjectReference Include="..\CodeUI.ServiceDefaults\CodeUI.ServiceDefaults.csproj" />
   </ItemGroup>
 
 </Project>
