@@ -1,21 +1,21 @@
 // XTerm.js Terminal Integration for Blazor
+// Thin transport: forward all input to .NET and render only backend output.
 window.xtermTerminal = {
     terminals: new Map(),
 
     // Initialize a new terminal instance
     create: function (elementId, dotNetObjectRef) {
         console.log('xtermTerminal.create called with elementId:', elementId);
-        console.log('dotNetObjectRef:', dotNetObjectRef);
-        
+
         try {
             const element = document.getElementById(elementId);
             if (!element) {
                 console.error('Terminal element not found:', elementId);
-                console.log('Available elements with terminal in ID:', 
+                console.log('Available elements with terminal in ID:',
                     Array.from(document.querySelectorAll('[id*="terminal"]')).map(e => e.id));
                 return false;
             }
-            console.log('Found terminal element:', element.id)
+            console.log('Found terminal element:', element.id);
 
             // Create terminal with configuration
             const terminal = new Terminal({
@@ -40,24 +40,27 @@ window.xtermTerminal = {
             terminal.open(element);
             fitAddon.fit();
 
-            // Handle input
+            // Handle input: forward raw data to .NET; no local echo or buffering
             terminal.onData(data => {
-                console.log('Terminal data received:', data);
                 try {
-                    if (dotNetObjectRef && dotNetObjectRef.invokeMethodAsync) {
-                        dotNetObjectRef.invokeMethodAsync('OnTerminalInput', data);
-                    } else {
-                        console.warn('dotNetObjectRef is not valid, cannot send input to .NET');
+                    if (dotNetObjectRef && typeof dotNetObjectRef.invokeMethodAsync === 'function') {
+                        dotNetObjectRef.invokeMethodAsync('OnTerminalInput', data).catch(err => {
+                            console.error('Failed to forward input to .NET:', err);
+                        });
                     }
                 } catch (error) {
-                    console.error('Error sending input to .NET:', error);
+                    console.error('Error forwarding terminal input:', error);
                 }
             });
 
             // Handle terminal resize
             terminal.onResize(({ cols, rows }) => {
                 try {
-                    dotNetObjectRef.invokeMethodAsync('OnTerminalResize', cols, rows);
+                    if (dotNetObjectRef && typeof dotNetObjectRef.invokeMethodAsync === 'function') {
+                        dotNetObjectRef.invokeMethodAsync('OnTerminalResize', cols, rows).catch(err => {
+                            console.error('Failed to forward resize to .NET:', err);
+                        });
+                    }
                 } catch (error) {
                     console.error('Error sending resize to .NET:', error);
                 }
@@ -73,10 +76,13 @@ window.xtermTerminal = {
             // Fit terminal on window resize
             const resizeHandler = () => {
                 if (this.terminals.has(elementId)) {
-                    fitAddon.fit();
+                    try { fitAddon.fit(); } catch {}
                 }
             };
             window.addEventListener('resize', resizeHandler);
+
+            // Focus only; content is written by backend
+            terminal.focus();
 
             console.log('Terminal created successfully:', elementId);
             return true;
@@ -159,7 +165,7 @@ window.xtermTerminal = {
                     terminalData.terminal.dispose();
                 }
                 if (terminalData.dotNetRef) {
-                    terminalData.dotNetRef.dispose();
+                    try { terminalData.dotNetRef.dispose(); } catch {}
                 }
                 this.terminals.delete(elementId);
                 console.log('Terminal disposed:', elementId);
@@ -190,3 +196,4 @@ window.xtermTerminal = {
         }
     }
 };
+

@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace CodeUI.Core.Models;
 
 /// <summary>
@@ -75,7 +77,8 @@ public class FileSystemItem
             suffixIndex++;
         }
         
-        return $"{size:F1} {suffixes[suffixIndex]}";
+        // Use invariant culture to ensure consistent decimal separator across locales
+        return $"{size.ToString("F1", CultureInfo.InvariantCulture)} {suffixes[suffixIndex]}";
     }
     
     private static string GetRelativeTime(DateTime dateTime)
